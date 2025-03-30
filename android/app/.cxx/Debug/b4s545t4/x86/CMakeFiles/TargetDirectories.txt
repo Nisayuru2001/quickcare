@@ -1,0 +1,2 @@
+/Users/nisayurusandaneth/AndroidStudioProjects/quickcare_user/android/app/.cxx/Debug/b4s545t4/x86/CMakeFiles/edit_cache.dir
+/Users/nisayurusandaneth/AndroidStudioProjects/quickcare_user/android/app/.cxx/Debug/b4s545t4/x86/CMakeFiles/rebuild_cache.dir
