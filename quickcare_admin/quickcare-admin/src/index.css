@@ -1,0 +1,82 @@
+/* src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+.admin-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-header {
+  @apply bg-blue-700 text-white shadow-lg;
+}
+
+.admin-sidebar {
+  @apply bg-gray-800 text-white w-64 flex-shrink-0 hidden md:block;
+  min-height: calc(100vh - 64px);
+}
+
+.sidebar-link {
+  @apply flex items-center px-6 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors duration-200;
+}
+
+.sidebar-link.active {
+  @apply bg-gray-700 text-white border-l-4 border-blue-500;
+}
+
+.admin-content {
+  @apply flex-grow bg-gray-100 p-6;
+}
+
+.card {
+  @apply bg-white rounded-lg shadow-md p-6 mb-6;
+}
+
+.btn {
+  @apply px-4 py-2 rounded font-medium focus:outline-none focus:ring-2 focus:ring-opacity-50 transition-colors duration-200;
+}
+
+.btn-primary {
+  @apply bg-blue-600 hover:bg-blue-700 focus:ring-blue-500 text-white;
+}
+
+.btn-success {
+  @apply bg-green-600 hover:bg-green-700 focus:ring-green-500 text-white;
+}
+
+.btn-danger {
+  @apply bg-red-600 hover:bg-red-700 focus:ring-red-500 text-white;
+}
+
+.btn-secondary {
+  @apply bg-gray-200 hover:bg-gray-300 focus:ring-gray-200 text-gray-800;
+}
+
+.status-badge {
+  @apply px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full;
+}
+
+.status-pending {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.status-approved {
+  @apply bg-green-100 text-green-800;
+}
+
+.status-rejected {
+  @apply bg-red-100 text-red-800;
+}
+
+.form-input {
+  @apply shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline;
+}
+
+.form-label {
+  @apply block text-gray-700 text-sm font-bold mb-2;
+}
+
+/* Updated versions of the components */
