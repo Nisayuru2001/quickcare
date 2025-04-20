@@ -46,7 +46,7 @@ function DriverLocationMap() {
   const [activeTrips, setActiveTrips] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [mapCenter, setMapCenter] = useState([37.7749, -122.4194]); // Default to San Francisco
+  const [mapCenter, setMapCenter] = useState([37.7749, -122.4194]); 
   const [zoom, setZoom] = useState(12);
   
   useEffect(() => {
