@@ -1,28 +1,44 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:quickcare_driver/services/location_service.dart';
 
 class DriverAuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Auth change user stream
-  Stream<User?> get user => _auth.authStateChanges();
-
-  // Sign in with email & password
-  Future<UserCredential?> signInWithEmailAndPassword(String email, String password) async {
+  // Sign in with email and password
+  Future<UserCredential> signInWithEmailAndPassword(String email, String password) async {
     try {
-      return await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
+      UserCredential result = await _auth.signInWithEmailAndPassword(
+          email: email,
+          password: password
       );
+
+      // Check if user has a driver profile
+      DocumentSnapshot driverDoc = await _firestore
+          .collection('driver_profiles')
+          .doc(result.user!.uid)
+          .get();
+
+      if (!driverDoc.exists) {
+        // This means user exists in auth but not as a driver - throw an error
+        throw FirebaseAuthException(
+            code: 'not-a-driver',
+            message: 'This account is not registered as a driver.'
+        );
+      }
+
+      // Start location tracking after successful login
+      LocationService.initLocationTracking();
+
+      return result;
     } catch (e) {
-      print('Error signing in driver: $e');
-      rethrow;
+      throw e;
     }
   }
 
-  // Register with email & password
-  Future<UserCredential?> registerWithEmailAndPassword({
+  // Register with email and password
+  Future<UserCredential> registerWithEmailAndPassword({
     required String email,
     required String password,
     required String fullName,
@@ -30,90 +46,125 @@ class DriverAuthService {
     required String licenseNumber,
   }) async {
     try {
-      // Create user in Firebase Authentication
-      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
+      // Create user in Firebase Auth
+      UserCredential result = await _auth.createUserWithEmailAndPassword(
+          email: email,
+          password: password
       );
 
       // Create driver profile in Firestore
-      await _firestore.collection('driver_profiles').doc(userCredential.user!.uid).set({
-        'fullName': fullName,
-        'email': email,
-        'phoneNumber': phoneNumber,
-        'licenseNumber': licenseNumber,
-        'status': 'pending', // Initial status could be pending verification
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await _createDriverProfile(
+        uid: result.user!.uid,
+        email: email,
+        fullName: fullName,
+        phoneNumber: phoneNumber,
+        licenseNumber: licenseNumber,
+      );
 
-      return userCredential;
+      // Start location tracking
+      LocationService.initLocationTracking();
+
+      return result;
     } catch (e) {
-      print('Error registering driver: $e');
-      rethrow;
+      throw e;
     }
   }
 
-  // Update driver profile
-  Future<void> updateDriverProfile({
+  // Create driver profile
+  Future<void> _createDriverProfile({
+    required String uid,
+    required String email,
     required String fullName,
     required String phoneNumber,
     required String licenseNumber,
   }) async {
-    try {
-      String? userId = _auth.currentUser?.uid;
-      if (userId == null) throw 'No user signed in';
+    return await _firestore.collection('driver_profiles').doc(uid).set({
+      'email': email,
+      'fullName': fullName,
+      'phoneNumber': phoneNumber,
+      'licenseNumber': licenseNumber,
+      'createdAt': FieldValue.serverTimestamp(),
+      'status': 'pending', // Initial status pending until approved by admin
+      'isVerified': false,
+      'rating': 0.0,
+      'totalTrips': 0,
+    });
+  }
 
-      // Check if document exists
-      DocumentSnapshot doc = await _firestore.collection('driver_profiles').doc(userId).get();
+  // Update driver profile
+  Future<void> updateDriverProfile({
+    String? fullName,
+    String? phoneNumber,
+    String? licenseNumber,
+  }) async {
+    User? user = _auth.currentUser;
 
-      if (doc.exists) {
-        // Update existing document
-        await _firestore.collection('driver_profiles').doc(userId).update({
-          'fullName': fullName,
-          'phoneNumber': phoneNumber,
-          'licenseNumber': licenseNumber,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      } else {
-        // Create new document
-        await _firestore.collection('driver_profiles').doc(userId).set({
-          'fullName': fullName,
-          'phoneNumber': phoneNumber,
-          'licenseNumber': licenseNumber,
-          'email': _auth.currentUser?.email ?? '',
-          'status': 'pending',
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+    if (user == null) {
+      throw Exception("No authenticated user found");
+    }
+
+    Map<String, dynamic> data = {};
+
+    if (fullName != null && fullName.isNotEmpty) {
+      data['fullName'] = fullName;
+    }
+
+    if (phoneNumber != null && phoneNumber.isNotEmpty) {
+      data['phoneNumber'] = phoneNumber;
+    }
+
+    if (licenseNumber != null && licenseNumber.isNotEmpty) {
+      data['licenseNumber'] = licenseNumber;
+    }
+
+    if (data.isNotEmpty) {
+      data['updatedAt'] = FieldValue.serverTimestamp();
+
+      await _firestore
+          .collection('driver_profiles')
+          .doc(user.uid)
+          .update(data);
+
+      // Also update driver name and phone in driver_locations for map display
+      if (fullName != null || phoneNumber != null) {
+        Map<String, dynamic> locationData = {};
+
+        if (fullName != null) {
+          locationData['driverName'] = fullName;
+        }
+
+        if (phoneNumber != null) {
+          locationData['phoneNumber'] = phoneNumber;
+        }
+
+        if (locationData.isNotEmpty) {
+          await _firestore
+              .collection('driver_locations')
+              .doc(user.uid)
+              .update(locationData)
+              .catchError((error) {
+            // Ignore if document doesn't exist yet - it will be created later
+            print("Warning: Couldn't update driver_locations: $error");
+          });
+        }
       }
-    } catch (e) {
-      print('Error updating driver profile: $e');
-      rethrow;
     }
   }
 
   // Sign out
   Future<void> signOut() async {
-    try {
-      await _auth.signOut();
-    } catch (e) {
-      print('Error signing out driver: $e');
-      rethrow;
-    }
+    // Stop location tracking and mark as offline
+    await LocationService.stopLocationTracking();
+
+    // Sign out from Firebase Auth
+    return await _auth.signOut();
   }
 
-  // Get current driver profile
-  Future<Map<String, dynamic>?> getCurrentDriverProfile() async {
-    try {
-      String? userId = _auth.currentUser?.uid;
-      if (userId == null) return null;
-
-      DocumentSnapshot doc = await _firestore.collection('driver_profiles').doc(userId).get();
-      return doc.exists ? doc.data() as Map<String, dynamic> : null;
-    } catch (e) {
-      print('Error fetching driver profile: $e');
-      return null;
-    }
+  // Get current user
+  User? getCurrentUser() {
+    return _auth.currentUser;
   }
+
+  // Get stream of auth state changes
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
 }

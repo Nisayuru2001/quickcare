@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:quickcare_driver/screens/profile/driver_profile_screen.dart';
 import 'package:quickcare_driver/screens/trip/trip_history_screen.dart';
 import 'package:quickcare_driver/services/driver_theme_service.dart';
+import 'package:quickcare_driver/services/location_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DriverHomeScreen extends StatefulWidget {
@@ -37,6 +38,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     _fetchEmergencyRequests();
     _checkForActiveTrip();
     _initializeScreens();
+
+    // Add this new code for location tracking
+    LocationService.initLocationTracking().then((success) {
+      if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enable location services for this app to work properly'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    });
   }
 
   Future<void> _loadThemePreference() async {

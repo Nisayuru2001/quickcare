@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:quickcare_driver/screens/auth/authenticate.dart';
 import 'package:quickcare_driver/screens/home/home_screen.dart';
+import 'package:quickcare_driver/services/location_service.dart';
 
 class DriverWrapper extends StatelessWidget {
   const DriverWrapper({super.key});
@@ -18,7 +19,8 @@ class DriverWrapper extends StatelessWidget {
           if (user == null) {
             return const DriverAuthenticate();
           } else {
-            // User is logged in, show home screen
+            // User is logged in, initialize location tracking and show home screen
+            LocationService.initLocationTracking();
             return const DriverHomeScreen();
           }
         }
@@ -26,7 +28,9 @@ class DriverWrapper extends StatelessWidget {
         // Show loading screen while waiting for auth state
         return const Scaffold(
           body: Center(
-            child: CircularProgressIndicator(),
+            child: CircularProgressIndicator(
+              color: Color(0xFFE53935),
+            ),
           ),
         );
       },
