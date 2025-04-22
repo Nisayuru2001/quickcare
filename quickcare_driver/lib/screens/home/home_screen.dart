@@ -13,7 +13,12 @@ import 'dart:async';
 
 
 class DriverHomeScreen extends StatefulWidget {
-  const DriverHomeScreen({super.key});
+  final int initialTabIndex;
+
+  const DriverHomeScreen({
+    super.key,
+    this.initialTabIndex = 0
+  });
 
   @override
   State<DriverHomeScreen> createState() => _DriverHomeScreenState();
@@ -30,7 +35,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Map<String, dynamic>? _activeTrip;
   bool _isLoading = true;
   bool _isDarkMode = false;
-  int _currentIndex = 0;
+  late int _currentIndex;
   String? _driverName;
 
   // Stream subscription for real-time updates
@@ -41,6 +46,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialTabIndex;
     _loadThemePreference();
     _loadDriverProfile();
     _setupEmergencyRequestsListener(); // Use a listener instead of a one-time fetch
@@ -193,6 +199,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             .toList();
         _isLoading = false;
       });
+
+      // Also refresh active trip
+      await _checkForActiveTrip();
     } catch (e) {
       print('Error fetching emergency requests: $e');
       setState(() => _isLoading = false);
@@ -205,6 +214,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       DriverThemeService.setDarkMode(isDarkMode);
     });
   }
+
+  // Update this method in your home_screen.dart file
 
   Future<void> _acceptEmergencyRequest(Map<String, dynamic> request) async {
     try {
@@ -220,7 +231,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
       // Navigate to emergency details screen
       if (mounted) {
-        Navigator.push(
+        final result = await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => EmergencyDetailsScreen(
@@ -228,10 +239,22 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             ),
           ),
         );
-      }
 
-      // Refresh data
-      await _checkForActiveTrip();
+        // If the trip was completed (result == true)
+        if (result == true) {
+          // Refresh data and switch to history tab
+          await _fetchEmergencyRequests();
+          await _checkForActiveTrip();
+
+          setState(() {
+            _currentIndex = 1; // Switch to History tab
+          });
+        } else {
+          // Just refresh the data
+          await _fetchEmergencyRequests();
+          await _checkForActiveTrip();
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -320,13 +343,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                     children: [
                       IconButton(
                         icon: Icon(
-                          Icons.bug_report,
+                          Icons.refresh,
                           color: textColor.withOpacity(0.7),
                         ),
-                        onPressed: () {
-                          FirebaseDebugService.testEmergencyRequestsAccess(context: context);
-                          FirebaseDebugService.listAllEmergencyRequests();
-                        },
+                        onPressed: _fetchEmergencyRequests,
                       ),
                       IconButton(
                         icon: Icon(
@@ -755,6 +775,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   setState(() {
                     _currentIndex = index;
                   });
+
+                  // If switching to Home tab, refresh data
+                  if (index == 0) {
+                    _fetchEmergencyRequests();
+                  }
                 },
                 backgroundColor: _isDarkMode ? Colors.grey[900] : surfaceColor,
                 selectedItemColor: primaryColor,

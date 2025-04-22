@@ -8,7 +8,6 @@ import 'package:url_launcher/url_launcher.dart';
 class EmergencyDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> emergencyRequest;
 
-  // Make the constructor const to fix the error
   const EmergencyDetailsScreen({
     Key? key,
     required this.emergencyRequest,
@@ -29,11 +28,40 @@ class _EmergencyDetailsScreenState extends State<EmergencyDetailsScreen> {
   String _estimatedTime = 'Calculating...';
   final Color primaryColor = const Color(0xFFE53935);
 
+  // Track if the request is already accepted
+  bool _isAccepted = false;
+
   @override
   void initState() {
     super.initState();
+    _checkRequestStatus();
     _checkLocationPermission();
     _calculateDistanceToPatient();
+  }
+
+  Future<void> _checkRequestStatus() async {
+    // Check if this emergency request is already accepted by this driver
+    String currentUserId = _auth.currentUser?.uid ?? '';
+    String requestId = widget.emergencyRequest['id'] ?? '';
+
+    try {
+      DocumentSnapshot docSnapshot = await _firestore
+          .collection('emergency_requests')
+          .doc(requestId)
+          .get();
+
+      if (docSnapshot.exists) {
+        Map<String, dynamic> data = docSnapshot.data() as Map<String, dynamic>;
+
+        if (data['status'] == 'accepted' && data['driverId'] == currentUserId) {
+          setState(() {
+            _isAccepted = true;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error checking request status: $e');
+    }
   }
 
   Future<void> _checkLocationPermission() async {
@@ -96,7 +124,10 @@ class _EmergencyDetailsScreenState extends State<EmergencyDetailsScreen> {
         'acceptedAt': FieldValue.serverTimestamp(),
       });
 
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _isAccepted = true;
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -105,9 +136,6 @@ class _EmergencyDetailsScreenState extends State<EmergencyDetailsScreen> {
             backgroundColor: Colors.green,
           ),
         );
-
-        // Go back to home screen where active trip will be shown
-        Navigator.pop(context);
       }
     } catch (e) {
       print('Error accepting request: $e');
@@ -117,6 +145,40 @@ class _EmergencyDetailsScreenState extends State<EmergencyDetailsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error accepting request: $e')),
         );
+      }
+    }
+  }
+
+  Future<void> _completeTrip() async {
+    setState(() => _isCompleting = true);
+
+    try {
+      await _firestore
+          .collection('emergency_requests')
+          .doc(widget.emergencyRequest['id'])
+          .update({
+        'status': 'completed',
+        'completedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Trip completed successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Pop back to home screen
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      print('Error completing trip: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error completing trip: $e')),
+        );
+        setState(() => _isCompleting = false);
       }
     }
   }
@@ -183,6 +245,7 @@ class _EmergencyDetailsScreenState extends State<EmergencyDetailsScreen> {
       }
     }
   }
+
   @override
   Widget build(BuildContext context) {
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -232,7 +295,7 @@ class _EmergencyDetailsScreenState extends State<EmergencyDetailsScreen> {
 
           // Main content
           SafeArea(
-            child: _isLoading
+            child: _isLoading || _isCompleting
                 ? const Center(
               child: CircularProgressIndicator(
                 color: Color(0xFFE53935),
@@ -267,7 +330,7 @@ class _EmergencyDetailsScreenState extends State<EmergencyDetailsScreen> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Emergency Request',
+                              _isAccepted ? 'Emergency in Progress' : 'Emergency Request',
                               style: TextStyle(
                                 color: primaryColor,
                                 fontWeight: FontWeight.bold,
@@ -419,22 +482,22 @@ class _EmergencyDetailsScreenState extends State<EmergencyDetailsScreen> {
 
                   const SizedBox(height: 32),
 
-                  // Accept Button
+                  // Accept/Complete Button
                   SizedBox(
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: _acceptEmergencyRequest,
+                      onPressed: _isAccepted ? _completeTrip : _acceptEmergencyRequest,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
+                        backgroundColor: _isAccepted ? Colors.green : primaryColor,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      child: const Text(
-                        'Accept Emergency Request',
-                        style: TextStyle(
+                      child: Text(
+                        _isAccepted ? 'Done' : 'Accept Emergency Request',
+                        style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),

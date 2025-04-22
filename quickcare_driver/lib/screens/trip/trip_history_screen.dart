@@ -29,11 +29,11 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
     try {
       String driverId = _auth.currentUser!.uid;
 
+      // Simplified query - remove the orderBy to avoid index requirement
       QuerySnapshot snapshot = await _firestore
           .collection('emergency_requests')
           .where('driverId', isEqualTo: driverId)
           .where('status', whereIn: ['completed', 'cancelled'])
-          .orderBy('acceptedAt', descending: true)
           .get();
 
       setState(() {
@@ -43,6 +43,15 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
           ...doc.data() as Map<String, dynamic>,
         })
             .toList();
+
+        // Sort the results in memory instead of in the query
+        _tripHistory.sort((a, b) {
+          if (a['acceptedAt'] == null) return 1;
+          if (b['acceptedAt'] == null) return -1;
+          return (b['acceptedAt'] as Timestamp)
+              .compareTo(a['acceptedAt'] as Timestamp);
+        });
+
         _isLoading = false;
       });
     } catch (e) {

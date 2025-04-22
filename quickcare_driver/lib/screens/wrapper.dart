@@ -10,6 +10,10 @@ class DriverWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Check if we have arguments passed (for tab navigation)
+    final Object? args = ModalRoute.of(context)?.settings.arguments;
+    final int initialTabIndex = args != null ? args as int : 0;
+
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
@@ -21,7 +25,7 @@ class DriverWrapper extends StatelessWidget {
           } else {
             // User is logged in, initialize location tracking and show home screen
             LocationService.initLocationTracking();
-            return const DriverHomeScreen();
+            return DriverHomeScreen(initialTabIndex: initialTabIndex);
           }
         }
 
