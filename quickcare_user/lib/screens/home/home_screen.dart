@@ -1,3 +1,4 @@
+// File: lib/screens/home/home_screen.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:quickcare_user/screens/profile/medical_profile_screen.dart';
 import 'package:quickcare_user/services/auth_service.dart';
+import 'package:quickcare_user/services/location_service.dart';
 import 'package:quickcare_user/services/theme_service.dart';
 import 'package:quickcare_user/screens/first_aid_screen.dart';
 import 'package:quickcare_user/screens/settings_screen.dart';
@@ -44,7 +46,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _isDarkMode = widget.isDarkMode;
     _checkForProfile();
-    _requestLocationPermission();
     _initializeScreens();
   }
 
@@ -101,90 +102,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _requestLocationPermission() async {
-    var status = await Permission.location.status;
-    if (!status.isGranted) {
-      await Permission.location.request();
-    }
-  }
-
-  Future<Position?> _getCurrentLocation() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Location services are disabled.',
-              style: TextStyle(color: Colors.white),
-            ),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: primaryColor,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }
-      return null;
-    }
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Location permissions are denied',
-                style: TextStyle(color: Colors.white),
-              ),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: primaryColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-        }
-        return null;
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Location permissions are permanently denied.',
-              style: TextStyle(color: Colors.white),
-            ),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: primaryColor,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }
-      return null;
-    }
-
-    try {
-      return await Geolocator.getCurrentPosition();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Error getting location: $e',
-              style: TextStyle(color: Colors.white),
-            ),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: primaryColor,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }
-      return null;
-    }
-  }
-
   Future<void> _requestEmergencyHelp() async {
     setState(() => _isRequestingHelp = true);
 
@@ -194,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
+              content: const Text(
                 'Please complete your medical profile first',
                 style: TextStyle(color: Colors.white),
               ),
@@ -212,19 +129,67 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      // Get location
-      Position? position = await _getCurrentLocation();
-      if (position == null) {
+      // Check and request location permissions using Geolocator (which shows in-app dialog)
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  'Location permission is required to request help',
+                  style: TextStyle(color: Colors.white),
+                ),
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: primaryColor,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                action: SnackBarAction(
+                  label: 'SETTINGS',
+                  textColor: Colors.white,
+                  onPressed: () => openAppSettings(),
+                ),
+              ),
+            );
+          }
+          setState(() => _isRequestingHelp = false);
+          return;
+        }
+      }
+
+      // Get current location
+      Position? position;
+      try {
+        position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 10),
+        );
+      } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Unable to get your location. Help request failed.',
-                style: TextStyle(color: Colors.white),
+                'Error getting location: $e',
+                style: const TextStyle(color: Colors.white),
               ),
               behavior: SnackBarBehavior.floating,
               backgroundColor: primaryColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+        setState(() => _isRequestingHelp = false);
+        return;
+      }
+
+      if (position == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Could not get your location. Please try again.',
+                style: TextStyle(color: Colors.white),
+              ),
+              backgroundColor: Colors.red,
             ),
           );
         }
@@ -238,7 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
       Map<String, dynamic> profileData = profileDoc.data() as Map<String, dynamic>;
 
       // Create emergency request
-      await _firestore.collection('emergency_requests').add({
+      DocumentReference requestRef = await _firestore.collection('emergency_requests').add({
         'userId': userId,
         'userName': profileData['fullName'] ?? 'Unknown',
         'location': GeoPoint(position.latitude, position.longitude),
@@ -253,15 +218,18 @@ class _HomeScreenState extends State<HomeScreen> {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
+      // Update the document with its ID for easier reference
+      await requestRef.update({'id': requestRef.id});
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
+            content: const Text(
               'Emergency help requested! Ambulance will be dispatched soon.',
               style: TextStyle(color: Colors.white),
             ),
             behavior: SnackBarBehavior.floating,
-            backgroundColor: Color(0xFF4CAF50),
+            backgroundColor: const Color(0xFF4CAF50),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
@@ -272,7 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
           SnackBar(
             content: Text(
               'Error requesting help: $e',
-              style: TextStyle(color: Colors.white),
+              style: const TextStyle(color: Colors.white),
             ),
             behavior: SnackBarBehavior.floating,
             backgroundColor: primaryColor,
@@ -459,32 +427,61 @@ class _HomeMainScreen extends StatelessWidget {
                   ],
                 ),
 
-                // Profile button
-                InkWell(
-                  onTap: () {
-                    // Use bottom navigation to go to profile tab
-                    if (context.findAncestorStateOfType<_HomeScreenState>() != null) {
-                      context.findAncestorStateOfType<_HomeScreenState>()!.setState(() {
-                        context.findAncestorStateOfType<_HomeScreenState>()!._currentIndex = 3; // Profile tab
-                      });
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
+                // Buttons row
+                Row(
+                  children: [
+                    // Debug button for testing location permissions
+                    IconButton(
+                      icon: Icon(
+                        Icons.location_on,
+                        color: textColor.withOpacity(0.7),
+                        size: 24,
+                      ),
+                      onPressed: () async {
+                        // Test location permissions with in-app dialog
+                        LocationPermission permission = await Geolocator.requestPermission();
+                        // Show result
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Location permission result: $permission',
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+
+                    // Profile button
+                    InkWell(
+                      onTap: () {
+                        // Use bottom navigation to go to profile tab
+                        if (context.findAncestorStateOfType<_HomeScreenState>() != null) {
+                          context.findAncestorStateOfType<_HomeScreenState>()!.setState(() {
+                            context.findAncestorStateOfType<_HomeScreenState>()!._currentIndex = 3; // Profile tab
+                          });
+                        }
+                      },
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: subtleColor,
-                        width: 1.5,
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: subtleColor,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.person_outline,
+                          size: 22,
+                          color: textColor.withOpacity(0.7),
+                        ),
                       ),
                     ),
-                    child: Icon(
-                      Icons.person_outline,
-                      size: 22,
-                      color: textColor.withOpacity(0.7),
-                    ),
-                  ),
+                  ],
                 ),
               ],
             ),
