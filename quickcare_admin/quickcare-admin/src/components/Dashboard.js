@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, query, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc, getDocs } from 'firebase/firestore';
 import DriverList from './DriverList';
 import DriverTrackingPage from './DriverTrackingPage';
+import UserList from './UserList';
+import UserDetail from './UserDetail';
+import TripHistoryManagement from './TripHistoryManagement';
 
 function Dashboard() {
   const [drivers, setDrivers] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('drivers');
   const [stats, setStats] = useState({
@@ -16,6 +20,7 @@ function Dashboard() {
     approved: 0,
     rejected: 0
   });
+  const [currentUserId, setCurrentUserId] = useState(null);
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -48,8 +53,27 @@ function Dashboard() {
       setLoading(false);
     });
 
+    // Fetch users
+    fetchUsers();
+
     return () => unsubscribe();
   }, []);
+
+  async function fetchUsers() {
+    try {
+      const usersQuery = query(collection(db, "users"));
+      const querySnapshot = await getDocs(usersQuery);
+      
+      const usersArray = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      setUsers(usersArray);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  }
 
   async function handleApproveDriver(driverId) {
     const driverRef = doc(db, "driver_profiles", driverId);
@@ -73,6 +97,16 @@ function Dashboard() {
       console.error("Failed to log out", error);
     }
   }
+
+  const handleViewUserDetails = (userId) => {
+    setCurrentUserId(userId);
+    setActiveTab('userDetails');
+  };
+
+  const handleBackToUserList = () => {
+    setCurrentUserId(null);
+    setActiveTab('users');
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -128,10 +162,33 @@ function Dashboard() {
             >
               Driver Tracking
             </button>
+            <button
+              onClick={() => {
+                setActiveTab('users');
+                setCurrentUserId(null);
+              }}
+              className={`${
+                activeTab === 'users' || activeTab === 'userDetails'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              User Management
+            </button>
+            <button
+              onClick={() => setActiveTab('trips')}
+              className={`${
+                activeTab === 'trips'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Trip History
+            </button>
           </nav>
         </div>
 
-        {activeTab === 'drivers' ? (
+        {activeTab === 'drivers' && (
           <>
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Driver Management</h2>
@@ -218,8 +275,37 @@ function Dashboard() {
               />
             )}
           </>
-        ) : (
+        )}
+
+        {activeTab === 'tracking' && (
           <DriverTrackingPage />
+        )}
+
+        {activeTab === 'users' && (
+          <>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">User Management</h2>
+              <div className="text-sm text-gray-500">
+                Total Users: {users.length}
+              </div>
+            </div>
+            
+            <UserList 
+              users={users} 
+              onViewDetails={handleViewUserDetails} 
+            />
+          </>
+        )}
+
+        {activeTab === 'userDetails' && currentUserId && (
+          <UserDetail 
+            userId={currentUserId} 
+            onBack={handleBackToUserList} 
+          />
+        )}
+
+        {activeTab === 'trips' && (
+          <TripHistoryManagement />
         )}
       </main>
     </div>
