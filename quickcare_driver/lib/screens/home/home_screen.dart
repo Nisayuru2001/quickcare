@@ -1,3 +1,4 @@
+// File: lib/screens/home/home_screen.dart (Driver App)
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -5,7 +6,11 @@ import 'package:quickcare_driver/screens/profile/driver_profile_screen.dart';
 import 'package:quickcare_driver/screens/trip/trip_history_screen.dart';
 import 'package:quickcare_driver/services/driver_theme_service.dart';
 import 'package:quickcare_driver/services/location_service.dart';
+import 'package:quickcare_driver/services/firebase_debug_service.dart';
+import 'package:quickcare_driver/screens/emergency_details_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
+
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
@@ -28,6 +33,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   int _currentIndex = 0;
   String? _driverName;
 
+  // Stream subscription for real-time updates
+  StreamSubscription<QuerySnapshot>? _emergencyRequestsSubscription;
+
   late List<Widget> _screens;
 
   @override
@@ -35,7 +43,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     super.initState();
     _loadThemePreference();
     _loadDriverProfile();
-    _fetchEmergencyRequests();
+    _setupEmergencyRequestsListener(); // Use a listener instead of a one-time fetch
     _checkForActiveTrip();
     _initializeScreens();
 
@@ -51,6 +59,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         );
       }
     });
+  }
+
+  @override
+  void dispose() {
+    // Cancel stream subscription to prevent memory leaks
+    _emergencyRequestsSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadThemePreference() async {
@@ -100,6 +115,36 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     );
   }
 
+  // Set up a real-time listener for emergency requests
+  void _setupEmergencyRequestsListener() {
+    setState(() => _isLoading = true);
+
+    try {
+      // Create a real-time stream for pending emergency requests
+      _emergencyRequestsSubscription = _firestore
+          .collection('emergency_requests')
+          .where('status', isEqualTo: 'pending')
+          .snapshots()
+          .listen((snapshot) {
+        setState(() {
+          _emergencyRequests = snapshot.docs
+              .map((doc) => {
+            'id': doc.id,
+            ...doc.data() as Map<String, dynamic>
+          })
+              .toList();
+          _isLoading = false;
+        });
+      }, onError: (error) {
+        print('Error in emergency requests stream: $error');
+        setState(() => _isLoading = false);
+      });
+    } catch (e) {
+      print('Error setting up emergency requests listener: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _checkForActiveTrip() async {
     try {
       String driverId = _authInstance.currentUser!.uid;
@@ -128,6 +173,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
+  // Use this for manual refresh if needed
   Future<void> _fetchEmergencyRequests() async {
     setState(() => _isLoading = true);
 
@@ -172,8 +218,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         'acceptedAt': FieldValue.serverTimestamp(),
       });
 
+      // Navigate to emergency details screen
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => EmergencyDetailsScreen(
+              emergencyRequest: request,
+            ),
+          ),
+        );
+      }
+
       // Refresh data
-      await _fetchEmergencyRequests();
       await _checkForActiveTrip();
 
       if (mounted) {
@@ -228,40 +285,61 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  Expanded( // 👈 this allows the left row to use remaining space
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: primaryColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.drive_eta_outlined,
+                            size: 24,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Flexible( // 👈 avoids the text from overflowing
+                          child: Text(
+                            'SmartAmbulance Driver',
+                            style: TextStyle(
+                              color: textColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   Row(
+                    mainAxisSize: MainAxisSize.min, // 👈 avoid extra space
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: primaryColor,
-                          borderRadius: BorderRadius.circular(12),
+                      IconButton(
+                        icon: Icon(
+                          Icons.bug_report,
+                          color: textColor.withOpacity(0.7),
                         ),
-                        child: const Icon(
-                          Icons.drive_eta_outlined,
-                          size: 24,
-                          color: Colors.white,
-                        ),
+                        onPressed: () {
+                          FirebaseDebugService.testEmergencyRequestsAccess(context: context);
+                          FirebaseDebugService.listAllEmergencyRequests();
+                        },
                       ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'SmartAmbulance Driver',
-                        style: TextStyle(
+                      IconButton(
+                        icon: Icon(
+                          _isDarkMode ? Icons.light_mode : Icons.dark_mode,
                           color: textColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
                         ),
+                        onPressed: () => _toggleTheme(!_isDarkMode),
                       ),
                     ],
                   ),
-                  IconButton(
-                    icon: Icon(
-                      _isDarkMode ? Icons.light_mode : Icons.dark_mode,
-                      color: textColor,
-                    ),
-                    onPressed: () => _toggleTheme(!_isDarkMode),
-                  ),
                 ],
               ),
+
               const SizedBox(height: 16),
               Text(
                 'Hello, ${_driverName ?? 'Driver'}',
@@ -379,7 +457,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  // Navigate to active trip details or navigation screen
+                  // Navigate to active trip details screen
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EmergencyDetailsScreen(
+                        emergencyRequest: trip,
+                      ),
+                    ),
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
@@ -427,6 +513,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             style: TextStyle(
               color: textColor.withOpacity(0.4),
               fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: _fetchEmergencyRequests,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Refresh'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ],

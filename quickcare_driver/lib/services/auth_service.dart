@@ -120,10 +120,33 @@ class DriverAuthService {
     if (data.isNotEmpty) {
       data['updatedAt'] = FieldValue.serverTimestamp();
 
-      await _firestore
+      // Check if the document exists first
+      DocumentSnapshot docSnapshot = await _firestore
           .collection('driver_profiles')
           .doc(user.uid)
-          .update(data);
+          .get();
+
+      if (docSnapshot.exists) {
+        // Document exists, update it
+        await _firestore
+            .collection('driver_profiles')
+            .doc(user.uid)
+            .update(data);
+      } else {
+        // Document doesn't exist, create it
+        // Add email field which is required for new profiles
+        data['email'] = user.email;
+        data['createdAt'] = FieldValue.serverTimestamp();
+        data['status'] = 'pending';
+        data['isVerified'] = false;
+        data['rating'] = 0.0;
+        data['totalTrips'] = 0;
+
+        await _firestore
+            .collection('driver_profiles')
+            .doc(user.uid)
+            .set(data);
+      }
 
       // Also update driver name and phone in driver_locations for map display
       if (fullName != null || phoneNumber != null) {
@@ -138,14 +161,28 @@ class DriverAuthService {
         }
 
         if (locationData.isNotEmpty) {
-          await _firestore
-              .collection('driver_locations')
-              .doc(user.uid)
-              .update(locationData)
-              .catchError((error) {
-            // Ignore if document doesn't exist yet - it will be created later
-            print("Warning: Couldn't update driver_locations: $error");
-          });
+          try {
+            await _firestore
+                .collection('driver_locations')
+                .doc(user.uid)
+                .update(locationData);
+          } catch (error) {
+            // If document doesn't exist, create it
+            if (error is FirebaseException && error.code == 'not-found') {
+              await _firestore
+                  .collection('driver_locations')
+                  .doc(user.uid)
+                  .set({
+                ...locationData,
+                'driverId': user.uid,
+                'isOnline': false,
+                'timestamp': FieldValue.serverTimestamp(),
+              });
+            } else {
+              // Log other errors
+              print("Warning: Couldn't update driver_locations: $error");
+            }
+          }
         }
       }
     }

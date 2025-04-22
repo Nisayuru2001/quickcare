@@ -475,20 +475,20 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
   InputDecoration _buildPasswordInputDecoration(
       String hint, IconData icon, bool obscureText, VoidCallback onPressed) {
     return InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(
+      hintText: hint,
+      hintStyle: TextStyle(
         color: textColor.withOpacity(0.4),
-    fontSize: 16,
-    ),
-    prefixIcon: Icon(icon, color: textColor.withOpacity(0.6), size: 22),
-    suffixIcon: IconButton(
-    icon: Icon(
-    obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-    color: textColor.withOpacity(0.6),
-      size: 22,
-    ),
-      onPressed: onPressed,
-    ),
+        fontSize: 16,
+      ),
+      prefixIcon: Icon(icon, color: textColor.withOpacity(0.6), size: 22),
+      suffixIcon: IconButton(
+        icon: Icon(
+          obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+          color: textColor.withOpacity(0.6),
+          size: 22,
+        ),
+        onPressed: onPressed,
+      ),
       filled: true,
       fillColor: surfaceColor,
       contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),

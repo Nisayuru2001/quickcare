@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:quickcare_driver/screens/trip/active_trip_screen.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class EmergencyDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> emergencyRequest;
 
+  // Make the constructor const to fix the error
   const EmergencyDetailsScreen({
-    super.key,
+    Key? key,
     required this.emergencyRequest,
-  });
+  }) : super(key: key);
 
   @override
   State<EmergencyDetailsScreen> createState() => _EmergencyDetailsScreenState();
@@ -17,14 +20,27 @@ class EmergencyDetailsScreen extends StatefulWidget {
 
 class _EmergencyDetailsScreenState extends State<EmergencyDetailsScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
   bool _isLoading = false;
+  bool _isCompleting = false;
+  Position? _driverPosition;
   double _distanceToPatient = 0;
   String _estimatedTime = 'Calculating...';
+  final Color primaryColor = const Color(0xFFE53935);
 
   @override
   void initState() {
     super.initState();
+    _checkLocationPermission();
     _calculateDistanceToPatient();
+  }
+
+  Future<void> _checkLocationPermission() async {
+    var status = await Permission.location.status;
+    if (!status.isGranted) {
+      await Permission.location.request();
+    }
   }
 
   Future<void> _calculateDistanceToPatient() async {
@@ -32,6 +48,9 @@ class _EmergencyDetailsScreenState extends State<EmergencyDetailsScreen> {
     try {
       // Get driver's current location
       Position position = await Geolocator.getCurrentPosition();
+      setState(() {
+        _driverPosition = position;
+      });
 
       // Get patient's location from the emergency request
       GeoPoint patientLocation = widget.emergencyRequest['location'];
@@ -73,22 +92,22 @@ class _EmergencyDetailsScreenState extends State<EmergencyDetailsScreen> {
           .doc(widget.emergencyRequest['id'])
           .update({
         'status': 'accepted',
-        'driverId': FirebaseAuth.instance.currentUser!.uid,
+        'driverId': _auth.currentUser!.uid,
         'acceptedAt': FieldValue.serverTimestamp(),
       });
 
       setState(() => _isLoading = false);
 
       if (mounted) {
-        // Navigate to Active Trip Screen
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ActiveTripScreen(
-              emergencyRequest: widget.emergencyRequest,
-            ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Emergency request accepted!'),
+            backgroundColor: Colors.green,
           ),
         );
+
+        // Go back to home screen where active trip will be shown
+        Navigator.pop(context);
       }
     } catch (e) {
       print('Error accepting request: $e');
@@ -102,10 +121,71 @@ class _EmergencyDetailsScreenState extends State<EmergencyDetailsScreen> {
     }
   }
 
+  Future<void> _openMapsNavigation() async {
+    if (widget.emergencyRequest['location'] == null) return;
+
+    try {
+      GeoPoint patientLocation = widget.emergencyRequest['location'];
+
+      // Format for Google Maps app navigation
+      final Uri googleMapsUri = Uri.parse(
+          'google.navigation:q=${patientLocation.latitude},${patientLocation.longitude}&mode=d'
+      );
+
+      // Check if Google Maps is installed
+      if (await canLaunchUrl(googleMapsUri)) {
+        await launchUrl(googleMapsUri);
+      } else {
+        // Fallback to browser-based Google Maps
+        final Uri webUri = Uri.parse(
+            'https://www.google.com/maps/dir/?api=1&destination=${patientLocation.latitude},${patientLocation.longitude}&travelmode=driving'
+        );
+
+        if (await canLaunchUrl(webUri)) {
+          await launchUrl(webUri, mode: LaunchMode.externalApplication);
+        } else {
+          throw 'Could not launch maps application';
+        }
+      }
+    } catch (e) {
+      print('Error opening maps: $e');
+      if (mounted) {
+        // Show a fallback dialog with coordinates
+        final GeoPoint patientLocation = widget.emergencyRequest['location'];
+        final String coordinates = '${patientLocation.latitude}, ${patientLocation.longitude}';
+
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Navigation Failed'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Could not open Google Maps. Patient location:'),
+                const SizedBox(height: 8),
+                SelectableText(
+                  coordinates,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                const Text('Copy these coordinates to use in your maps application.'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
   @override
   Widget build(BuildContext context) {
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final Color primaryColor = const Color(0xFFE53935);
     final Color textColor = isDarkMode ? Colors.white : const Color(0xFF212121);
     final Color cardColor = isDarkMode ? Colors.grey[900]! : Colors.white;
 
@@ -213,6 +293,23 @@ class _EmergencyDetailsScreenState extends State<EmergencyDetailsScreen> {
                               textColor,
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: ElevatedButton.icon(
+                            onPressed: _openMapsNavigation,
+                            icon: const Icon(Icons.navigation),
+                            label: const Text('Navigate to Patient'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),

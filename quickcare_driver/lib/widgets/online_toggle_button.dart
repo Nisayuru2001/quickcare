@@ -94,4 +94,3 @@ class _OnlineToggleButtonState extends State<OnlineToggleButton> {
     );
   }
 }
-}
