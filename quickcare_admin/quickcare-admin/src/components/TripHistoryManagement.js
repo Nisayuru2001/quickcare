@@ -18,19 +18,59 @@ function TripHistoryManagement() {
   
   async function fetchTrips() {
     setLoading(true);
+    setError('');
+    
     try {
-      const tripsQuery = query(
+      console.log("Fetching trips from Firestore...");
+      
+      // Base query for emergency_requests collection
+      let tripsQuery = query(
         collection(db, "emergency_requests"),
         orderBy("createdAt", "desc"),
         limit(100)
       );
       
       const querySnapshot = await getDocs(tripsQuery);
-      const tripsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
       
+      console.log(`Retrieved ${querySnapshot.size} documents`);
+      
+      if (querySnapshot.empty) {
+        console.log("No trips found in the database");
+        setTrips([]);
+        setLoading(false);
+        return;
+      }
+      
+      const tripsData = [];
+      
+      // Process each document
+      querySnapshot.forEach(doc => {
+        const data = doc.data();
+        
+        // Add some validation/logging to understand the data structure
+        console.log(`Processing trip document ${doc.id}:`, data);
+        
+        // Create a consistent trip object with fallback values for missing fields
+        const trip = {
+          id: doc.id,
+          status: data.status || 'unknown',
+          userName: data.userName || 'Unknown User',
+          driverName: data.driverName || 'Unassigned',
+          driverId: data.driverId || null,
+          userId: data.userId || null,
+          locationDescription: data.locationDescription || 'Unknown location',
+          location: data.location || null,
+          createdAt: data.createdAt || null,
+          acceptedAt: data.acceptedAt || null,
+          completedAt: data.completedAt || null,
+          cancellationReason: data.cancellationReason || null,
+          ...data // Include all other fields
+        };
+        
+        tripsData.push(trip);
+      });
+      
+      console.log("Processed trips data:", tripsData);
       setTrips(tripsData);
     } catch (err) {
       console.error("Error fetching trips:", err);
@@ -43,14 +83,35 @@ function TripHistoryManagement() {
   // Filter trips based on user selections and search term
   const filteredTrips = trips.filter(trip => {
     // Apply status filter
-    if (filter !== 'all' && trip.status !== filter) return false;
+    if (filter !== 'all' && trip.status !== filter) {
+      // Map 'in_progress' filter button value to 'accepted' status in database
+      if (filter === 'in_progress' && trip.status === 'accepted') {
+        return true;
+      }
+      return false;
+    }
     
     // Apply time frame filter
-    if (timeFrame !== 'all') {
+    if (timeFrame !== 'all' && trip.createdAt) {
       const now = new Date();
-      const tripDate = trip.createdAt ? new Date(trip.createdAt.seconds * 1000) : null;
+      let tripDate;
       
-      if (!tripDate) return false;
+      // Handle Firestore timestamp
+      if (trip.createdAt.seconds) {
+        tripDate = new Date(trip.createdAt.seconds * 1000);
+      } 
+      // Handle string date
+      else if (typeof trip.createdAt === 'string') {
+        tripDate = new Date(trip.createdAt);
+      }
+      // Handle Date object
+      else if (trip.createdAt instanceof Date) {
+        tripDate = trip.createdAt;
+      } else {
+        return true; // If we can't parse the date, include it in results
+      }
+      
+      if (!tripDate) return true;
       
       const dayDiff = (now - tripDate) / (1000 * 60 * 60 * 24);
       
@@ -73,21 +134,37 @@ function TripHistoryManagement() {
     return true;
   });
   
-  // Format date for display
+  // Format date for display with better error handling
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
     
     try {
-      const date = new Date(timestamp.seconds * 1000);
-      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+      // Handle Firestore timestamp
+      if (timestamp.seconds) {
+        const date = new Date(timestamp.seconds * 1000);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+      } 
+      // Handle string date
+      else if (typeof timestamp === 'string') {
+        const date = new Date(timestamp);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+      }
+      // Handle Date object 
+      else if (timestamp instanceof Date) {
+        return timestamp.toLocaleDateString() + ' ' + timestamp.toLocaleTimeString();
+      }
+      
+      return 'Invalid date';
     } catch (error) {
+      console.error("Error formatting date:", error, timestamp);
       return 'Invalid date';
     }
   };
   
-  // Get status badge
+  // Get status badge with appropriate styling
   const getStatusBadge = (status) => {
     let color = '';
+    let displayText = status && status.charAt(0).toUpperCase() + status.slice(1);
     
     switch (status) {
       case 'pending':
@@ -95,6 +172,7 @@ function TripHistoryManagement() {
         break;
       case 'accepted':
         color = 'bg-blue-100 text-blue-800';
+        displayText = 'In Progress';
         break;
       case 'completed':
         color = 'bg-green-100 text-green-800';
@@ -108,7 +186,7 @@ function TripHistoryManagement() {
     
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>
-        {status && status.charAt(0).toUpperCase() + status.slice(1)}
+        {displayText || 'Unknown'}
       </span>
     );
   };
@@ -169,11 +247,11 @@ function TripHistoryManagement() {
               </button>
               <button 
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  filter === 'accepted' 
+                  filter === 'in_progress' 
                     ? 'bg-blue-500 text-white' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
-                onClick={() => setFilter('accepted')}
+                onClick={() => setFilter('in_progress')}
               >
                 In Progress
               </button>
@@ -293,7 +371,7 @@ function TripHistoryManagement() {
                       {getStatusBadge(trip.status)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 max-w-xs truncate">{trip.locationDescription || 'Unknown location'}</div>
+                      <div className="text-sm text-gray-900 max-w-xs truncate">{trip.locationDescription || (trip.location ? `${trip.location.latitude.toFixed(4)}, ${trip.location.longitude.toFixed(4)}` : 'Unknown')}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button

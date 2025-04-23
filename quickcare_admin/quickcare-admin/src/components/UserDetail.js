@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 function UserDetail({ userId, onBack }) {
@@ -13,37 +13,92 @@ function UserDetail({ userId, onBack }) {
   useEffect(() => {
     async function fetchUserData() {
       setLoading(true);
+      setError('');
+      
       try {
-        // Fetch user profile from user_profiles collection (not users)
+        console.log(`Fetching details for user ${userId}`);
+        
+        // Fetch user profile from user_profiles collection
         const userDocRef = doc(db, "user_profiles", userId);
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
-          setUser({ id: userDoc.id, ...userDoc.data() });
+          const userData = { id: userDoc.id, ...userDoc.data() };
+          console.log("Retrieved user data:", userData);
+          setUser(userData);
           
-          // Try to fetch medical info if it exists
-          if (userDoc.data().medicalInfoId) {
-            const medicalDoc = await getDoc(doc(db, "medical_info", userDoc.data().medicalInfoId));
-            if (medicalDoc.exists()) {
-              setMedicalInfo(medicalDoc.data());
+          // First check if medical info fields are directly on the user document
+          if (userData.bloodType || userData.allergies || userData.medications || userData.medicalConditions) {
+            console.log("Medical info fields found directly on user document");
+            setMedicalInfo({
+              bloodType: userData.bloodType || '',
+              allergies: userData.allergies || '',
+              medications: userData.medications || '',
+              medicalConditions: userData.medicalConditions || '',
+              additionalNotes: userData.additionalNotes || '',
+              pastSurgeries: userData.pastSurgeries || ''
+            });
+          }
+          // Then try medicalInfo object if it exists
+          else if (userData.medicalInfo) {
+            console.log("Medical info found in medicalInfo object:", userData.medicalInfo);
+            setMedicalInfo(userData.medicalInfo);
+          } 
+          // Finally try medicalInfoId if it exists
+          else if (userData.medicalInfoId) {
+            console.log(`Fetching medical info with ID: ${userData.medicalInfoId}`);
+            try {
+              const medicalDoc = await getDoc(doc(db, "medical_info", userData.medicalInfoId));
+              if (medicalDoc.exists()) {
+                console.log("Retrieved medical info:", medicalDoc.data());
+                setMedicalInfo(medicalDoc.data());
+              }
+            } catch (medicalError) {
+              console.error("Error fetching medical info:", medicalError);
             }
-          } else {
-            setMedicalInfo(userDoc.data().medicalInfo || null);
           }
           
-          // Fetch user's emergency trips
-          const tripsQuery = query(
-            collection(db, "emergency_requests"),
-            where("userId", "==", userId)
-          );
-          
-          const tripsSnapshot = await getDocs(tripsQuery);
-          const tripsData = tripsSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
-          
-          setTrips(tripsData);
+          // Fetch user's emergency trips - try multiple query approaches
+          try {
+            console.log(`Fetching trips for user ${userId}`);
+            
+            // Get all trips and filter client-side to ensure we catch all
+            const tripsQuery = query(collection(db, "emergency_requests"));
+            const tripsSnapshot = await getDocs(tripsQuery);
+            
+            console.log(`Retrieved ${tripsSnapshot.size} total trips`);
+            
+            const tripsData = [];
+            
+            tripsSnapshot.forEach(doc => {
+              const tripData = doc.data();
+              
+              // Match by userId
+              if (tripData.userId === userId) {
+                tripsData.push({ id: doc.id, ...tripData });
+              }
+              // Match by userName if it matches user's fullName
+              else if (userData.fullName && tripData.userName === userData.fullName) {
+                tripsData.push({ id: doc.id, ...tripData });
+              }
+              // Match by userID in any other relevant fields
+              else if (tripData.user === userId) {
+                tripsData.push({ id: doc.id, ...tripData });
+              }
+            });
+            
+            // Sort trips by date (newest first)
+            tripsData.sort((a, b) => {
+              const dateA = a.createdAt ? a.createdAt.seconds : 0;
+              const dateB = b.createdAt ? b.createdAt.seconds : 0;
+              return dateB - dateA;
+            });
+            
+            console.log(`Found ${tripsData.length} trips for this user`);
+            setTrips(tripsData);
+          } catch (tripsError) {
+            console.error("Error fetching trips:", tripsError);
+          }
         } else {
           setError("User not found");
         }
@@ -58,21 +113,37 @@ function UserDetail({ userId, onBack }) {
     fetchUserData();
   }, [userId]);
 
-  // Format date for display
+  // Format date for display with improved error handling
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
     
     try {
-      const date = new Date(timestamp.seconds * 1000);
-      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-    } catch (error) {
+      // Handle Firestore timestamp
+      if (timestamp.seconds) {
+        const date = new Date(timestamp.seconds * 1000);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+      } 
+      // Handle string date
+      else if (typeof timestamp === 'string') {
+        const date = new Date(timestamp);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+      }
+      // Handle Date object 
+      else if (timestamp instanceof Date) {
+        return timestamp.toLocaleDateString() + ' ' + timestamp.toLocaleTimeString();
+      }
+      
       return 'Invalid date';
+    } catch (error) {
+      console.error("Error formatting date:", error, timestamp);
+      return 'N/A';
     }
   };
   
   // Format status for display with badge color
   const getStatusBadge = (status) => {
     let color = '';
+    let displayText = status && status.charAt(0).toUpperCase() + status.slice(1);
     
     switch (status) {
       case 'pending':
@@ -80,6 +151,7 @@ function UserDetail({ userId, onBack }) {
         break;
       case 'accepted':
         color = 'bg-blue-100 text-blue-800';
+        displayText = 'In Progress';
         break;
       case 'completed':
         color = 'bg-green-100 text-green-800';
@@ -93,7 +165,7 @@ function UserDetail({ userId, onBack }) {
     
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>
-        {status && status.charAt(0).toUpperCase() + status.slice(1)}
+        {displayText || 'Unknown'}
       </span>
     );
   };
@@ -252,8 +324,8 @@ function UserDetail({ userId, onBack }) {
                   <span className="text-gray-900 font-medium">{formatDate(user.createdAt)}</span>
                 </div>
                 <div className="flex">
-                  <span className="w-32 flex-shrink-0 text-gray-500">Last Login:</span>
-                  <span className="text-gray-900 font-medium">{formatDate(user.lastLogin)}</span>
+                  <span className="w-32 flex-shrink-0 text-gray-500">Last Updated:</span>
+                  <span className="text-gray-900 font-medium">{formatDate(user.updatedAt)}</span>
                 </div>
                 <div className="flex">
                   <span className="w-32 flex-shrink-0 text-gray-500">Status:</span>
@@ -301,7 +373,8 @@ function UserDetail({ userId, onBack }) {
         
         {activeTab === 'medical' && (
           <div>
-            {user.medicalInfo ? (
+            {/* Check both medicalInfo state and direct fields on user */}
+            {(medicalInfo || user.bloodType || user.allergies) ? (
               <div className="bg-gray-50 p-6 rounded-lg">
                 <h4 className="text-lg font-semibold text-gray-900 mb-4">Medical Information</h4>
                 
@@ -309,30 +382,42 @@ function UserDetail({ userId, onBack }) {
                   <div className="space-y-3">
                     <div className="flex">
                       <span className="w-32 flex-shrink-0 text-gray-500">Blood Type:</span>
-                      <span className="text-gray-900 font-medium">{user.medicalInfo.bloodType || 'Not specified'}</span>
+                      <span className="text-gray-900 font-medium">
+                        {(medicalInfo && medicalInfo.bloodType) || user.bloodType || 'Not specified'}
+                      </span>
                     </div>
                     <div className="flex">
                       <span className="w-32 flex-shrink-0 text-gray-500">Allergies:</span>
-                      <span className="text-gray-900 font-medium">{user.medicalInfo.allergies || 'None'}</span>
+                      <span className="text-gray-900 font-medium">
+                        {(medicalInfo && medicalInfo.allergies) || user.allergies || 'None'}
+                      </span>
                     </div>
                     <div className="flex">
                       <span className="w-32 flex-shrink-0 text-gray-500">Medications:</span>
-                      <span className="text-gray-900 font-medium">{user.medicalInfo.medications || 'None'}</span>
+                      <span className="text-gray-900 font-medium">
+                        {(medicalInfo && medicalInfo.medications) || user.medications || 'None'}
+                      </span>
                     </div>
                   </div>
                   
                   <div className="space-y-3">
                     <div className="flex">
                       <span className="w-40 flex-shrink-0 text-gray-500">Medical Conditions:</span>
-                      <span className="text-gray-900 font-medium">{user.medicalInfo.medicalConditions || 'None'}</span>
+                      <span className="text-gray-900 font-medium">
+                        {(medicalInfo && medicalInfo.medicalConditions) || user.medicalConditions || 'None'}
+                      </span>
                     </div>
                     <div className="flex">
                       <span className="w-40 flex-shrink-0 text-gray-500">Past Surgeries:</span>
-                      <span className="text-gray-900 font-medium">{user.medicalInfo.pastSurgeries || 'None'}</span>
+                      <span className="text-gray-900 font-medium">
+                        {(medicalInfo && medicalInfo.pastSurgeries) || user.pastSurgeries || 'None'}
+                      </span>
                     </div>
                     <div className="flex">
                       <span className="w-40 flex-shrink-0 text-gray-500">Additional Notes:</span>
-                      <span className="text-gray-900 font-medium">{user.medicalInfo.additionalNotes || 'None'}</span>
+                      <span className="text-gray-900 font-medium">
+                        {(medicalInfo && medicalInfo.additionalNotes) || user.additionalNotes || 'None'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -378,7 +463,7 @@ function UserDetail({ userId, onBack }) {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {trip.locationDescription || 
                            (trip.location ? 
-                             `[${trip.location.latitude.toFixed(6)}, ${trip.location.longitude.toFixed(6)}]` : 
+                             `[${typeof trip.location.latitude === 'number' ? trip.location.latitude.toFixed(6) : trip.location.latitude}, ${typeof trip.location.longitude === 'number' ? trip.location.longitude.toFixed(6) : trip.location.longitude}]` : 
                              'Unknown location')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

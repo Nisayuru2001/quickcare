@@ -10,23 +10,24 @@ function UserList({ users, onViewDetails }) {
       return (
         (user.fullName && user.fullName.toLowerCase().includes(searchLower)) ||
         (user.email && user.email.toLowerCase().includes(searchLower)) ||
-        (user.phoneNumber && user.phoneNumber.toLowerCase().includes(searchLower))
+        (user.phoneNumber && user.phoneNumber.toLowerCase().includes(searchLower)) ||
+        (user.emergencyContact && user.emergencyContact.toLowerCase().includes(searchLower))
       );
     }
     return true;
   });
 
-  // Get user name from fullName field
+  // Get user name from fullName field with fallback
   const getUserName = (user) => {
-    return user.fullName || 'N/A';
+    return user.fullName || 'Unnamed User';
   };
   
-  // Get user phone from phoneNumber field
+  // Get user phone from phoneNumber field with fallback
   const getUserPhone = (user) => {
     return user.phoneNumber || 'N/A';
   };
   
-  // Get user email
+  // Get user email with fallback
   const getUserEmail = (user) => {
     return user.email || 'N/A';
   };
@@ -36,15 +37,24 @@ function UserList({ users, onViewDetails }) {
     return user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U';
   };
   
-  // Format date
+  // Format date with better error handling
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
     
     try {
-      const date = new Date(timestamp.seconds * 1000);
-      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+      // Handle both Firestore timestamp and regular Date objects
+      if (timestamp.seconds) {
+        const date = new Date(timestamp.seconds * 1000);
+        return date.toLocaleDateString();
+      } else if (timestamp instanceof Date) {
+        return timestamp.toLocaleDateString();
+      } else if (typeof timestamp === 'string') {
+        return new Date(timestamp).toLocaleDateString();
+      }
+      return 'N/A';
     } catch (error) {
-      return 'Invalid date';
+      console.error("Error formatting date:", error);
+      return 'N/A';
     }
   };
 

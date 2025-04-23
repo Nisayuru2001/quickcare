@@ -26,67 +26,114 @@ function Dashboard() {
 
   useEffect(() => {
     // Fetch drivers from Firestore
-    const q = query(collection(db, "driver_profiles"));
-    
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const driversArray = [];
-      let pendingCount = 0;
-      let approvedCount = 0;
-      let rejectedCount = 0;
+    const fetchDrivers = () => {
+      const q = query(collection(db, "driver_profiles"));
       
-      querySnapshot.forEach((doc) => {
-        const driver = { id: doc.id, ...doc.data() };
-        driversArray.push(driver);
+      const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        console.log(`Retrieved ${querySnapshot.size} driver documents`);
         
-        if (driver.status === 'pending') pendingCount++;
-        else if (driver.status === 'approved') approvedCount++;
-        else if (driver.status === 'rejected') rejectedCount++;
+        const driversArray = [];
+        let pendingCount = 0;
+        let approvedCount = 0;
+        let rejectedCount = 0;
+        
+        querySnapshot.forEach((doc) => {
+          const driver = { id: doc.id, ...doc.data() };
+          driversArray.push(driver);
+          
+          if (driver.status === 'pending') pendingCount++;
+          else if (driver.status === 'approved') approvedCount++;
+          else if (driver.status === 'rejected') rejectedCount++;
+        });
+        
+        console.log('Processed driver data:', driversArray);
+        
+        setDrivers(driversArray);
+        setStats({
+          total: driversArray.length,
+          pending: pendingCount,
+          approved: approvedCount,
+          rejected: rejectedCount
+        });
+        setLoading(false);
+      }, (error) => {
+        console.error("Error fetching drivers:", error);
+        setLoading(false);
       });
       
-      setDrivers(driversArray);
-      setStats({
-        total: driversArray.length,
-        pending: pendingCount,
-        approved: approvedCount,
-        rejected: rejectedCount
-      });
-      setLoading(false);
-    });
+      return unsubscribe;
+    };
 
-    // Fetch users
+    // Fetch users from user_profiles collection
+    const fetchUsers = async () => {
+      try {
+        console.log("Fetching users from user_profiles collection");
+        
+        const usersQuery = query(collection(db, "user_profiles"));
+        const querySnapshot = await getDocs(usersQuery);
+        
+        console.log(`Retrieved ${querySnapshot.size} user documents`);
+        
+        if (querySnapshot.empty) {
+          console.log("No users found in the database");
+          return;
+        }
+        
+        const usersArray = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          console.log(`Processing user ${doc.id}:`, data);
+          
+          return {
+            id: doc.id,
+            fullName: data.fullName || null,
+            email: data.email || null,
+            phoneNumber: data.phoneNumber || null,
+            emergencyContact: data.emergencyContact || null,
+            createdAt: data.createdAt || null,
+            lastLogin: data.lastLogin || null,
+            isActive: data.isActive,
+            medicalInfo: data.medicalInfo || null,
+            ...data
+          };
+        });
+        
+        console.log('Processed user data:', usersArray);
+        setUsers(usersArray);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+      }
+    };
+
+    const driversUnsubscribe = fetchDrivers();
     fetchUsers();
 
-    return () => unsubscribe();
+    return () => {
+      driversUnsubscribe();
+    };
   }, []);
 
-  async function fetchUsers() {
+  async function handleApproveDriver(driverId) {
     try {
-      const usersQuery = query(collection(db, "users"));
-      const querySnapshot = await getDocs(usersQuery);
-      
-      const usersArray = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      setUsers(usersArray);
+      const driverRef = doc(db, "driver_profiles", driverId);
+      await updateDoc(driverRef, {
+        status: "approved"
+      });
+      console.log(`Driver ${driverId} approved successfully`);
     } catch (error) {
-      console.error("Error fetching users:", error);
+      console.error("Error approving driver:", error);
     }
   }
 
-  async function handleApproveDriver(driverId) {
-    const driverRef = doc(db, "driver_profiles", driverId);
-    await updateDoc(driverRef, {
-      status: "approved"
-    });
-  }
-
   async function handleRejectDriver(driverId) {
-    const driverRef = doc(db, "driver_profiles", driverId);
-    await updateDoc(driverRef, {
-      status: "rejected"
-    });
+    try {
+      const driverRef = doc(db, "driver_profiles", driverId);
+      await updateDoc(driverRef, {
+        status: "rejected"
+      });
+      console.log(`Driver ${driverId} rejected successfully`);
+    } catch (error) {
+      console.error("Error rejecting driver:", error);
+    }
   }
 
   async function handleLogout() {
@@ -99,6 +146,7 @@ function Dashboard() {
   }
 
   const handleViewUserDetails = (userId) => {
+    console.log(`Viewing details for user ${userId}`);
     setCurrentUserId(userId);
     setActiveTab('userDetails');
   };
