@@ -15,8 +15,7 @@ function UserDetail({ userId, onBack }) {
       setLoading(true);
       setError('');
       
-      try {
-        console.log(`Fetching details for user ${userId}`);
+   
         
         // Fetch user profile from user_profiles collection
         const userDocRef = doc(db, "user_profiles", userId);
