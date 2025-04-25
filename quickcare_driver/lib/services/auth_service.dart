@@ -14,6 +14,10 @@ class DriverAuthService {
           password: password
       );
 
+      // Debug: Print user info
+      print('User signed in: ${result.user?.uid}');
+      print('User email: ${result.user?.email}');
+
       // Check if user has a driver profile
       DocumentSnapshot driverDoc = await _firestore
           .collection('driver_profiles')
@@ -33,6 +37,7 @@ class DriverAuthService {
 
       return result;
     } catch (e) {
+      print('Sign in error: $e');
       throw e;
     }
   }
@@ -96,6 +101,8 @@ class DriverAuthService {
     String? fullName,
     String? phoneNumber,
     String? licenseNumber,
+    String? policeReportUrl,
+    String? drivingLicenseUrl,
   }) async {
     User? user = _auth.currentUser;
 
@@ -115,6 +122,14 @@ class DriverAuthService {
 
     if (licenseNumber != null && licenseNumber.isNotEmpty) {
       data['licenseNumber'] = licenseNumber;
+    }
+
+    if (policeReportUrl != null) {
+      data['policeReportUrl'] = policeReportUrl;
+    }
+
+    if (drivingLicenseUrl != null) {
+      data['drivingLicenseUrl'] = drivingLicenseUrl;
     }
 
     if (data.isNotEmpty) {

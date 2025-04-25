@@ -7,7 +7,7 @@ import 'package:quickcare_driver/screens/trip/trip_history_screen.dart';
 import 'package:quickcare_driver/services/driver_theme_service.dart';
 import 'package:quickcare_driver/services/location_service.dart';
 import 'package:quickcare_driver/services/firebase_debug_service.dart';
-import 'package:quickcare_driver/screens/emergency_details_screen.dart';
+import 'package:quickcare_driver/screens/emergency/emergency_details_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 

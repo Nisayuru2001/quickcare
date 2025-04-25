@@ -1,7 +1,11 @@
+// lib/screens/profile/driver_profile_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:quickcare_driver/services/auth_service.dart';
+import 'package:quickcare_driver/services/document_upload_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DriverProfileScreen extends StatefulWidget {
   const DriverProfileScreen({super.key});
@@ -25,12 +29,18 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
   Map<String, dynamic>? _driverProfile;
   bool _isLoading = true;
   bool _isEditing = false;
+  bool _isUploadingPoliceReport = false;
+  bool _isUploadingLicense = false;
 
   // Form controllers
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _licenseController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+
+  // Document URLs
+  String? _policeReportUrl;
+  String? _drivingLicenseUrl;
 
   @override
   void initState() {
@@ -52,16 +62,28 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
     try {
       String userId = _authInstance.currentUser!.uid;
+      print('Loading profile for user: $userId');
+
       DocumentSnapshot doc = await _firestore.collection('driver_profiles').doc(userId).get();
 
       if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        print('Profile data: $data');
+
         setState(() {
-          _driverProfile = doc.data() as Map<String, dynamic>;
-          _fullNameController.text = _driverProfile?['fullName'] ?? '';
-          _phoneController.text = _driverProfile?['phoneNumber'] ?? '';
-          _licenseController.text = _driverProfile?['licenseNumber'] ?? '';
-          _emailController.text = _driverProfile?['email'] ?? '';
+          _driverProfile = data;
+          _fullNameController.text = data['fullName'] ?? '';
+          _phoneController.text = data['phoneNumber'] ?? '';
+          _licenseController.text = data['licenseNumber'] ?? '';
+          _emailController.text = data['email'] ?? '';
+          _policeReportUrl = data['policeReportUrl'];
+          _drivingLicenseUrl = data['drivingLicenseUrl'];
         });
+
+        print('Police Report URL: $_policeReportUrl');
+        print('Driving License URL: $_drivingLicenseUrl');
+      } else {
+        print('No profile document found');
       }
     } catch (e) {
       print('Error loading driver profile: $e');
@@ -76,17 +98,20 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
       }
     }
   }
+
   Future<void> _updateProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
     try {
-      // Use the auth service instead of directly accessing Firestore
+      // Update profile including document URLs
       await _auth.updateDriverProfile(
         fullName: _fullNameController.text,
         phoneNumber: _phoneController.text,
         licenseNumber: _licenseController.text,
+        policeReportUrl: _policeReportUrl,
+        drivingLicenseUrl: _drivingLicenseUrl,
       );
 
       setState(() => _isEditing = false);
@@ -104,7 +129,10 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
       print('Error updating profile: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update profile: $e')),
+          SnackBar(
+            content: Text('Failed to update profile: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -113,6 +141,213 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
       }
     }
   }
+
+  Future<void> _uploadDocument(String documentType) async {
+    // Check if already uploading
+    if (documentType == 'police_report' && _isUploadingPoliceReport) return;
+    if (documentType == 'driving_license' && _isUploadingLicense) return;
+
+    // Set specific uploading state
+    setState(() {
+      if (documentType == 'police_report') {
+        _isUploadingPoliceReport = true;
+      } else if (documentType == 'driving_license') {
+        _isUploadingLicense = true;
+      }
+    });
+
+    print('Starting document upload for $documentType');
+
+    try {
+      String? userId = _authInstance.currentUser?.uid;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+      print('User ID: $userId');
+
+      // Show loading dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return Center(
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: primaryColor),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Uploading document...',
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      }
+
+      String? url = await DocumentUploadService.uploadPDF(
+        userId: userId,
+        documentType: documentType,
+      );
+
+      if (url != null) {
+        print('Upload successful, URL: $url');
+
+        // Update local state
+        setState(() {
+          if (documentType == 'police_report') {
+            _policeReportUrl = url;
+          } else if (documentType == 'driving_license') {
+            _drivingLicenseUrl = url;
+          }
+        });
+
+        // Update profile in Firestore
+        Map<String, dynamic> updateData = {};
+        if (documentType == 'police_report') {
+          updateData['policeReportUrl'] = url;
+        } else if (documentType == 'driving_license') {
+          updateData['drivingLicenseUrl'] = url;
+        }
+
+        if (updateData.isNotEmpty) {
+          print('Updating Firestore with: $updateData');
+          await _firestore
+              .collection('driver_profiles')
+              .doc(userId)
+              .update(updateData);
+          print('Firestore update successful');
+        }
+
+        if (mounted) {
+          // Close the loading dialog
+          Navigator.of(context).pop();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Text('${documentType == 'police_report' ? 'Police Report' : 'Driving License'} uploaded successfully'),
+                ],
+              ),
+              backgroundColor: const Color(0xFF4CAF50),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(20),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+      } else {
+        print('No file selected');
+        if (mounted) {
+          // Close the loading dialog if it's showing
+          Navigator.of(context).pop();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: const [
+                  Icon(Icons.info_outline, color: Colors.white),
+                  SizedBox(width: 12),
+                  Text('No file selected'),
+                ],
+              ),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(20),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error uploading document: $e');
+      if (mounted) {
+        // Close the loading dialog if it's showing
+        Navigator.of(context).pop();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('Failed to upload document: ${e.toString()}'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(20),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          if (documentType == 'police_report') {
+            _isUploadingPoliceReport = false;
+          } else if (documentType == 'driving_license') {
+            _isUploadingLicense = false;
+          }
+        });
+      }
+    }
+  }
+
+  Future<void> _viewDocument(String url) async {
+    try {
+      if (url.isEmpty) {
+        throw Exception('Document URL is empty');
+      }
+
+      final Uri uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        throw Exception('Cannot open document');
+      }
+    } catch (e) {
+      print('Error viewing document: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('Could not open document: ${e.toString()}'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(20),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -220,7 +455,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
                       const SizedBox(height: 32),
 
-                      // Profile Information Section
+                      // Personal Information Section
                       Text(
                         'Personal Information',
                         style: TextStyle(
@@ -232,7 +467,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
                       const SizedBox(height: 16),
 
-                      // Full Name Field
+                      // Form fields
                       _buildInputLabel('Full Name', textColorThemed),
                       const SizedBox(height: 8),
                       TextFormField(
@@ -250,7 +485,6 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
                       const SizedBox(height: 16),
 
-                      // Phone Number Field
                       _buildInputLabel('Phone Number', textColorThemed),
                       const SizedBox(height: 8),
                       TextFormField(
@@ -274,7 +508,6 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
                       const SizedBox(height: 16),
 
-                      // License Number Field
                       _buildInputLabel('License Number', textColorThemed),
                       const SizedBox(height: 8),
                       TextFormField(
@@ -292,7 +525,6 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
                       const SizedBox(height: 16),
 
-                      // Email Field (read-only)
                       _buildInputLabel('Email', textColorThemed),
                       const SizedBox(height: 8),
                       TextFormField(
@@ -303,8 +535,48 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                           surfaceColorThemed,
                           textColorThemed,
                         ),
-                        enabled: false, // Email is always read-only
+                        enabled: false,
                         style: TextStyle(color: textColorThemed),
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // Documents Section
+                      Text(
+                        'Required Documents',
+                        style: TextStyle(
+                          color: textColorThemed,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Police Report Upload
+                      _buildDocumentCard(
+                        title: 'Police Report',
+                        icon: Icons.local_police_outlined,
+                        documentUrl: _policeReportUrl,
+                        isUploading: _isUploadingPoliceReport,
+                        onUpload: () => _uploadDocument('police_report'),
+                        onView: () => _viewDocument(_policeReportUrl!),
+                        cardColor: cardColorThemed,
+                        textColor: textColorThemed,
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Driving License Upload
+                      _buildDocumentCard(
+                        title: 'Driving License',
+                        icon: Icons.drive_eta_outlined,
+                        documentUrl: _drivingLicenseUrl,
+                        isUploading: _isUploadingLicense,
+                        onUpload: () => _uploadDocument('driving_license'),
+                        onView: () => _viewDocument(_drivingLicenseUrl!),
+                        cardColor: cardColorThemed,
+                        textColor: textColorThemed,
                       ),
 
                       const SizedBox(height: 32),
@@ -321,7 +593,6 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
                       const SizedBox(height: 16),
 
-                      // Statistics Cards
                       Row(
                         children: [
                           Expanded(
@@ -374,6 +645,127 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDocumentCard({
+    required String title,
+    required IconData icon,
+    required String? documentUrl,
+    required bool isUploading,
+    required VoidCallback onUpload,
+    required VoidCallback onView,
+    required Color cardColor,
+    required Color textColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: primaryColor,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      documentUrl != null ? 'Document uploaded' : 'No document uploaded',
+                      style: TextStyle(
+                        color: documentUrl != null ? Colors.green : textColor.withOpacity(0.6),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              if (documentUrl != null) ...[
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.visibility_outlined),
+                    label: const Text('View Document'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: primaryColor,
+                      side: BorderSide(color: primaryColor),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: onView,
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: ElevatedButton.icon(
+                  icon: Icon(
+                    documentUrl != null ? Icons.refresh : Icons.upload_file,
+                  ),
+                  label: Text(
+                    documentUrl != null ? 'Replace Document' : 'Upload Document',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: isUploading ? null : onUpload,
+                ),
+              ),
+            ],
+          ),
+          if (isUploading) ...[
+            const SizedBox(height: 12),
+            LinearProgressIndicator(
+              backgroundColor: primaryColor.withOpacity(0.1),
+              valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+            ),
+          ],
+        ],
       ),
     );
   }
