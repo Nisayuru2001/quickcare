@@ -13,6 +13,7 @@ class DocumentUploadService {
     try {
       _storage = FirebaseStorage.instance;
       print('Firebase Storage instance created successfully');
+      print('Storage bucket: ${_storage!.bucket}');
     } catch (e) {
       print('Error initializing Firebase Storage: $e');
       rethrow;
@@ -31,6 +32,7 @@ class DocumentUploadService {
       }
 
       print('Starting PDF upload for $documentType');
+      print('Current storage bucket: ${_storage!.bucket}');
 
       // Pick PDF file
       FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -55,34 +57,20 @@ class DocumentUploadService {
           throw Exception('File size exceeds 10MB limit. Please select a smaller file.');
         }
 
-        // Validate file extension
-        if (!result.files.single.name.toLowerCase().endsWith('.pdf')) {
-          throw Exception('Please select a PDF file');
-        }
-
         // Create a unique file name with timestamp
         String fileName = '${documentType}_${DateTime.now().millisecondsSinceEpoch}.pdf';
         print('Uploading as: $fileName');
 
         try {
-          // Create reference with proper path
-          String storagePath = 'driver_documents/$userId/$fileName';
-          Reference ref = _storage!.ref().child(storagePath);
-          print('Storage reference path: ${ref.fullPath}');
+          // Try a simple upload first
+          String simplePath = fileName;
+          Reference simpleRef = _storage!.ref().child(simplePath);
+          print('Trying simple upload to: ${simpleRef.fullPath}');
 
-          // Set metadata
-          SettableMetadata metadata = SettableMetadata(
-            contentType: 'application/pdf',
-            customMetadata: {
-              'documentType': documentType,
-              'uploadedAt': DateTime.now().toIso8601String(),
-              'userId': userId,
-              'fileName': result.files.single.name,
-            },
+          UploadTask uploadTask = simpleRef.putFile(
+            file,
+            SettableMetadata(contentType: 'application/pdf'),
           );
-
-          // Upload the file
-          UploadTask uploadTask = ref.putFile(file, metadata);
 
           // Monitor upload progress
           uploadTask.snapshotEvents.listen(
@@ -93,7 +81,8 @@ class DocumentUploadService {
             onError: (error) {
               print('Upload progress error: $error');
               if (error is FirebaseException) {
-                print('Firebase error details: ${error.code} - ${error.message}');
+                print('Firebase error code: ${error.code}');
+                print('Firebase error message: ${error.message}');
               }
             },
           );
@@ -101,21 +90,35 @@ class DocumentUploadService {
           // Wait for the upload to complete
           TaskSnapshot snapshot = await uploadTask;
 
-          // Verify upload was successful
-          if (snapshot.state != TaskState.success) {
-            throw Exception('Upload failed. Please try again.');
+          if (snapshot.state == TaskState.success) {
+            String downloadUrl = await snapshot.ref.getDownloadURL();
+            print('Simple upload successful. URL: $downloadUrl');
+
+            // Now try to move to the correct location
+            try {
+              String correctPath = 'driver_documents/$userId/$fileName';
+              Reference correctRef = _storage!.ref().child(correctPath);
+
+              // Copy to correct location
+              await correctRef.putFile(file);
+              String finalUrl = await correctRef.getDownloadURL();
+
+              // Delete from root
+              try {
+                await simpleRef.delete();
+              } catch (e) {
+                print('Could not delete temporary file: $e');
+              }
+
+              print('Moved to correct location. Final URL: $finalUrl');
+              return finalUrl;
+            } catch (e) {
+              print('Could not move file to correct location: $e');
+              return downloadUrl; // Return the simple upload URL
+            }
+          } else {
+            throw Exception('Upload failed with state: ${snapshot.state}');
           }
-
-          // Get the download URL
-          String downloadUrl = await snapshot.ref.getDownloadURL();
-
-          // Verify the URL is valid
-          if (downloadUrl.isEmpty) {
-            throw Exception('Failed to get download URL');
-          }
-
-          print('File uploaded successfully. URL: $downloadUrl');
-          return downloadUrl;
 
         } catch (e) {
           print('Upload error: $e');
@@ -123,43 +126,18 @@ class DocumentUploadService {
           if (e is FirebaseException) {
             print('Firebase error details: ${e.code} - ${e.message}');
 
-            // Provide specific error messages based on Firebase error codes
-            switch (e.code) {
-              case 'storage/unknown':
-                throw Exception('Unknown error occurred. Please ensure Firebase Storage is properly configured in your Firebase project.');
-              case 'storage/object-not-found':
-              // Try alternative approach if object-not-found error
-                print('Attempting alternative upload approach...');
-                // Create metadata again for the alternative approach
-                final altMetadata = SettableMetadata(
-                  contentType: 'application/pdf',
-                  customMetadata: {
-                    'documentType': documentType,
-                    'uploadedAt': DateTime.now().toIso8601String(),
-                    'userId': userId,
-                    'fileName': result.files.single.name,
-                  },
-                );
-                return await _uploadWithAlternativeApproach(file, userId, documentType, altMetadata);
-              case 'storage/bucket-not-found':
-                throw Exception('Storage bucket not found. Please check your Firebase Storage configuration.');
-              case 'storage/project-not-found':
-                throw Exception('Firebase project not found. Please check your Firebase configuration.');
-              case 'storage/quota-exceeded':
-                throw Exception('Storage quota exceeded. Please upgrade your Firebase plan.');
-              case 'storage/unauthenticated':
-                throw Exception('User not authenticated. Please log in again.');
-              case 'storage/unauthorized':
-                throw Exception('User does not have permission to upload. Please check Firebase Storage rules.');
-              case 'storage/retry-limit-exceeded':
-                throw Exception('Upload failed after multiple attempts. Please check your internet connection.');
-              case 'storage/invalid-checksum':
-                throw Exception('File integrity check failed. Please try again.');
-              case 'storage/canceled':
-                throw Exception('Upload was cancelled.');
-              default:
-                throw Exception('Upload failed: ${e.message}');
+            // Check for specific errors
+            if (e.code == 'storage/unauthorized') {
+              throw Exception('User does not have permission to upload. Please check Firebase Storage rules.');
+            } else if (e.code == 'storage/unauthenticated') {
+              throw Exception('User not authenticated. Please log in again.');
+            } else if (e.code == 'storage/bucket-not-found') {
+              throw Exception('Storage bucket not found. Please check your Firebase configuration.');
+            } else if (e.code == 'storage/project-not-found') {
+              throw Exception('Firebase project not found. Please check your Firebase configuration.');
             }
+
+            throw Exception('Upload failed: ${e.message}');
           }
 
           rethrow;
@@ -175,59 +153,6 @@ class DocumentUploadService {
       } else {
         throw Exception('Failed to upload file: ${e.toString()}');
       }
-    }
-  }
-
-  /// Alternative upload approach if the main method fails
-  static Future<String?> _uploadWithAlternativeApproach(
-      File file,
-      String userId,
-      String documentType,
-      SettableMetadata metadata,
-      ) async {
-    try {
-      // Try a simpler path structure
-      String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-      String fileName = '${userId}_${documentType}_$timestamp.pdf';
-
-      // Use root level upload first
-      Reference ref = _storage!.ref().child(fileName);
-      print('Trying alternative path: ${ref.fullPath}');
-
-      UploadTask uploadTask = ref.putFile(file, metadata);
-      TaskSnapshot snapshot = await uploadTask;
-
-      if (snapshot.state == TaskState.success) {
-        String downloadUrl = await snapshot.ref.getDownloadURL();
-
-        // Now try to move it to the correct location
-        try {
-          String correctPath = 'driver_documents/$userId/$fileName';
-          Reference correctRef = _storage!.ref().child(correctPath);
-
-          // Copy to correct location
-          await correctRef.putFile(file, metadata);
-
-          // Delete from root
-          try {
-            await ref.delete();
-          } catch (e) {
-            print('Could not delete temporary file: $e');
-          }
-
-          // Return the correct URL
-          return await correctRef.getDownloadURL();
-        } catch (e) {
-          // If moving fails, return the original URL
-          print('Could not move file to correct location, using root URL: $e');
-          return downloadUrl;
-        }
-      }
-
-      throw Exception('Alternative upload approach failed');
-    } catch (e) {
-      print('Alternative upload failed: $e');
-      rethrow;
     }
   }
 

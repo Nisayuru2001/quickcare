@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:quickcare_driver/firebase_options.dart';
 import 'package:quickcare_driver/screens/wrapper.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:quickcare_driver/services/firebase_storage_debug_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,7 +13,7 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Initialize Firebase Storage
+  // Initialize and debug Firebase Storage
   try {
     final storage = FirebaseStorage.instance;
 
@@ -23,6 +24,9 @@ void main() async {
     storage.setMaxUploadRetryTime(const Duration(seconds: 30));
     storage.setMaxDownloadRetryTime(const Duration(seconds: 30));
     storage.setMaxOperationRetryTime(const Duration(seconds: 30));
+
+    // Run debug check
+    await FirebaseStorageDebugService.debugStorageSetup();
 
     print('Firebase Storage initialized successfully');
   } catch (e) {
