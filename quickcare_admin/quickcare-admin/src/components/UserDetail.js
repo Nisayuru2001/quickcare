@@ -142,29 +142,29 @@ function UserDetail({ userId, onBack }) {
   
   // Format status for display with badge color
   const getStatusBadge = (status) => {
-    let color = '';
+    let colorClass = '';
     let displayText = status && status.charAt(0).toUpperCase() + status.slice(1);
     
     switch (status) {
       case 'pending':
-        color = 'bg-yellow-100 text-yellow-800';
+        colorClass = 'bg-[#D97706]/20 text-[#D97706] border border-[#D97706]/30';
         break;
       case 'accepted':
-        color = 'bg-blue-100 text-blue-800';
+        colorClass = 'bg-[#3B82F6]/20 text-[#3B82F6] border border-[#3B82F6]/30';
         displayText = 'In Progress';
         break;
       case 'completed':
-        color = 'bg-green-100 text-green-800';
+        colorClass = 'bg-[#0D9488]/20 text-[#0D9488] border border-[#0D9488]/30';
         break;
       case 'cancelled':
-        color = 'bg-red-100 text-red-800';
+        colorClass = 'bg-[#DC2626]/20 text-[#DC2626] border border-[#DC2626]/30';
         break;
       default:
-        color = 'bg-gray-100 text-gray-800';
+        colorClass = 'bg-[#64748B]/20 text-[#94A3B8] border border-[#64748B]/30';
     }
     
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
         {displayText || 'Unknown'}
       </span>
     );
@@ -172,33 +172,33 @@ function UserDetail({ userId, onBack }) {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-center py-12">
-        <svg className="animate-spin h-10 w-10 text-indigo-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <div className="flex items-center justify-center h-96 backdrop-blur-sm bg-white/5 rounded-xl shadow-lg border border-white/10 p-6">
+        <svg className="animate-spin h-10 w-10 text-[#3B82F6]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
-        <p className="text-gray-500">Loading user data...</p>
+        <span className="ml-3 text-[#94A3B8]">Loading user data...</span>
       </div>
     );
   }
   
   if (error) {
     return (
-      <div className="bg-red-50 rounded-xl shadow-sm border border-red-100 p-6">
+      <div className="bg-[#DC2626]/10 backdrop-blur-sm p-6 rounded-xl shadow-lg border border-[#DC2626]/30">
         <div className="flex items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[#DC2626] mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <h3 className="text-lg font-medium text-red-800">Error</h3>
+          <h3 className="text-lg font-medium text-white">Error</h3>
         </div>
-        <div className="mt-2 text-red-700">
+        <div className="mt-2 text-[#94A3B8]">
           <p>{error}</p>
         </div>
         <div className="mt-4">
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            className="inline-flex items-center px-4 py-2 rounded-lg shadow-lg text-white bg-gradient-to-r from-[#3B82F6] to-[#4F46E5] hover:from-[#60A5FA] hover:to-[#6366F1] transition-colors"
           >
             Back to User List
           </button>
@@ -209,14 +209,16 @@ function UserDetail({ userId, onBack }) {
 
   if (!user) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-center py-12">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-        </svg>
-        <p className="text-gray-500 text-lg mb-1">User not found</p>
+      <div className="backdrop-blur-sm bg-white/5 rounded-xl shadow-lg border border-white/10 p-6 text-center py-12">
+        <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 border border-white/10">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-[#94A3B8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        </div>
+        <p className="text-white text-lg mb-1">User not found</p>
         <button
           onClick={onBack}
-          className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          className="mt-4 inline-flex items-center px-4 py-2 rounded-lg shadow-lg text-white bg-gradient-to-r from-[#3B82F6] to-[#4F46E5] hover:from-[#60A5FA] hover:to-[#6366F1] transition-colors"
         >
           Back to User List
         </button>
@@ -225,30 +227,30 @@ function UserDetail({ userId, onBack }) {
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <div className="w-full">
       {/* Header */}
-      <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+      <div className="p-6 border-b border-white/10 flex justify-between items-center">
         <div className="flex items-center">
           <button
             onClick={onBack}
-            className="p-2 mr-4 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-indigo-50 transition-colors"
+            className="p-2 mr-4 text-[#94A3B8] hover:text-[#3B82F6] rounded-full hover:bg-white/5 transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
           </button>
-          <h3 className="text-lg font-semibold text-gray-800">User Details</h3>
+          <h3 className="text-lg font-semibold text-white">User Details</h3>
         </div>
-        <div className="text-sm text-gray-500">User ID: {userId}</div>
+        <div className="text-sm bg-white/5 py-1 px-2 rounded-lg border border-white/10 text-[#94A3B8]">User ID: {userId}</div>
       </div>
       
       {/* Tabs */}
-      <div className="p-6 border-b border-gray-100">
+      <div className="p-4 border-b border-white/10">
         <div className="sm:hidden">
           <select
             id="tabs"
             name="tabs"
-            className="block w-full focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md"
+            className="block w-full bg-white/5 border border-white/10 rounded-lg text-white focus:ring-[#3B82F6] focus:border-[#3B82F6] p-2"
             value={activeTab}
             onChange={(e) => setActiveTab(e.target.value)}
           >
@@ -258,40 +260,53 @@ function UserDetail({ userId, onBack }) {
           </select>
         </div>
         <div className="hidden sm:block">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-              <button
-                onClick={() => setActiveTab('profile')}
-                className={`${
-                  activeTab === 'profile'
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-              >
+          <nav className="flex space-x-4" aria-label="Tabs">
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={`${
+                activeTab === 'profile'
+                  ? 'bg-white/10 text-white'
+                  : 'text-[#94A3B8] hover:text-white hover:bg-white/5'
+              } px-3 py-2 rounded-lg text-sm font-medium transition-colors`}
+            >
+              <div className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
                 Profile
-              </button>
-              <button
-                onClick={() => setActiveTab('medical')}
-                className={`${
-                  activeTab === 'medical'
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-              >
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('medical')}
+              className={`${
+                activeTab === 'medical'
+                  ? 'bg-white/10 text-white'
+                  : 'text-[#94A3B8] hover:text-white hover:bg-white/5'
+              } px-3 py-2 rounded-lg text-sm font-medium transition-colors`}
+            >
+              <div className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
                 Medical Info
-              </button>
-              <button
-                onClick={() => setActiveTab('trips')}
-                className={`${
-                  activeTab === 'trips'
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-              >
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('trips')}
+              className={`${
+                activeTab === 'trips'
+                  ? 'bg-white/10 text-white'
+                  : 'text-[#94A3B8] hover:text-white hover:bg-white/5'
+              } px-3 py-2 rounded-lg text-sm font-medium transition-colors`}
+            >
+              <div className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
                 Trip History
-              </button>
-            </nav>
-          </div>
+              </div>
+            </button>
+          </nav>
         </div>
       </div>
       
@@ -299,72 +314,83 @@ function UserDetail({ userId, onBack }) {
       <div className="p-6">
         {activeTab === 'profile' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-gray-50 p-6 rounded-lg">
+            <div className="backdrop-blur-sm bg-white/5 rounded-xl shadow-lg border border-white/10 p-6">
               <div className="flex items-center mb-6">
-                <div className="h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center text-2xl font-semibold text-indigo-800">
+                <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#3B82F6]/30 to-[#4F46E5]/30 border border-white/10 flex items-center justify-center text-2xl font-semibold text-white">
                   {user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
                 </div>
                 <div className="ml-4">
-                  <h4 className="text-xl font-semibold text-gray-900">{user.fullName || 'No Name'}</h4>
-                  <p className="text-gray-600">{user.email || 'No Email'}</p>
+                  <h4 className="text-xl font-semibold text-white">{user.fullName || 'No Name'}</h4>
+                  <p className="text-[#94A3B8]">{user.email || 'No Email'}</p>
                 </div>
               </div>
               
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="flex">
-                  <span className="w-32 flex-shrink-0 text-gray-500">Phone:</span>
-                  <span className="text-gray-900 font-medium">{user.phoneNumber || 'Not provided'}</span>
+                  <span className="w-32 flex-shrink-0 text-[#94A3B8]">Phone:</span>
+                  <span className="text-white font-medium">{user.phoneNumber || 'Not provided'}</span>
                 </div>
                 <div className="flex">
-                  <span className="w-32 flex-shrink-0 text-gray-500">Emergency Contact:</span>
-                  <span className="text-gray-900 font-medium">{user.emergencyContact || 'Not provided'}</span>
+                  <span className="w-32 flex-shrink-0 text-[#94A3B8]">Emergency Contact:</span>
+                  <span className="text-white font-medium">{user.emergencyContact || 'Not provided'}</span>
                 </div>
                 <div className="flex">
-                  <span className="w-32 flex-shrink-0 text-gray-500">Registered On:</span>
-                  <span className="text-gray-900 font-medium">{formatDate(user.createdAt)}</span>
+                  <span className="w-32 flex-shrink-0 text-[#94A3B8]">Registered On:</span>
+                  <span className="text-white font-medium">{formatDate(user.createdAt)}</span>
                 </div>
                 <div className="flex">
-                  <span className="w-32 flex-shrink-0 text-gray-500">Last Updated:</span>
-                  <span className="text-gray-900 font-medium">{formatDate(user.updatedAt)}</span>
+                  <span className="w-32 flex-shrink-0 text-[#94A3B8]">Last Updated:</span>
+                  <span className="text-white font-medium">{formatDate(user.updatedAt)}</span>
                 </div>
                 <div className="flex">
-                  <span className="w-32 flex-shrink-0 text-gray-500">Status:</span>
-                  <span className="text-gray-900 font-medium">{user.isActive !== false ? 'Active' : 'Inactive'}</span>
+                  <span className="w-32 flex-shrink-0 text-[#94A3B8]">Status:</span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    user.isActive !== false 
+                      ? 'bg-[#0D9488]/20 text-[#0D9488] border border-[#0D9488]/30' 
+                      : 'bg-[#64748B]/20 text-[#94A3B8] border border-[#64748B]/30'
+                  }`}>
+                    {user.isActive !== false ? 'Active' : 'Inactive'}
+                  </span>
                 </div>
               </div>
             </div>
             
-            <div className="bg-gray-50 p-6 rounded-lg">
-              <h4 className="text-lg font-semibold text-gray-900 mb-4">Account Activity</h4>
+            <div className="backdrop-blur-sm bg-white/5 rounded-xl shadow-lg border border-white/10 p-6">
+              <h4 className="text-lg font-semibold text-white mb-4 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-[#3B82F6]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                Account Activity
+              </h4>
               
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Total Emergency Trips:</span>
-                  <span className="text-gray-900 font-medium">{trips.length}</span>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg border border-white/10">
+                  <span className="text-[#94A3B8]">Total Emergency Trips:</span>
+                  <span className="text-white font-medium px-3 py-1 bg-[#3B82F6]/20 rounded-lg border border-[#3B82F6]/30">
+                    {trips.length}
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Completed Trips:</span>
-                  <span className="text-gray-900 font-medium">
+                <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg border border-white/10">
+                  <span className="text-[#94A3B8]">Completed Trips:</span>
+                  <span className="text-white font-medium px-3 py-1 bg-[#0D9488]/20 rounded-lg border border-[#0D9488]/30">
                     {trips.filter(trip => trip.status === 'completed').length}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Cancelled Trips:</span>
-                  <span className="text-gray-900 font-medium">
+                <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg border border-white/10">
+                  <span className="text-[#94A3B8]">Cancelled Trips:</span>
+                  <span className="text-white font-medium px-3 py-1 bg-[#DC2626]/20 rounded-lg border border-[#DC2626]/30">
                     {trips.filter(trip => trip.status === 'cancelled').length}
                   </span>
                 </div>
                 {trips.length > 0 && (
-                  <>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Last Trip Date:</span>
-                      <span className="text-gray-900 font-medium">
-                        {formatDate(trips.sort((a, b) => 
-                          (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)
-                        )[0]?.timestamp || trips[0]?.createdAt)}
-                      </span>
-                    </div>
-                  </>
+                  <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg border border-white/10">
+                    <span className="text-[#94A3B8]">Last Trip Date:</span>
+                    <span className="text-white font-medium">
+                      {formatDate(trips.sort((a, b) => 
+                        (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)
+                      )[0]?.timestamp || trips[0]?.createdAt)}
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
@@ -375,47 +401,52 @@ function UserDetail({ userId, onBack }) {
           <div>
             {/* Check both medicalInfo state and direct fields on user */}
             {(medicalInfo || user.bloodType || user.allergies) ? (
-              <div className="bg-gray-50 p-6 rounded-lg">
-                <h4 className="text-lg font-semibold text-gray-900 mb-4">Medical Information</h4>
+              <div className="backdrop-blur-sm bg-white/5 rounded-xl shadow-lg border border-white/10 p-6">
+                <h4 className="text-lg font-semibold text-white mb-4 flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-[#3B82F6]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                  Medical Information
+                </h4>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <div className="flex">
-                      <span className="w-32 flex-shrink-0 text-gray-500">Blood Type:</span>
-                      <span className="text-gray-900 font-medium">
+                  <div className="space-y-4">
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <span className="block text-[#94A3B8] text-sm">Blood Type</span>
+                      <span className="text-white font-medium">
                         {(medicalInfo && medicalInfo.bloodType) || user.bloodType || 'Not specified'}
                       </span>
                     </div>
-                    <div className="flex">
-                      <span className="w-32 flex-shrink-0 text-gray-500">Allergies:</span>
-                      <span className="text-gray-900 font-medium">
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <span className="block text-[#94A3B8] text-sm">Allergies</span>
+                      <span className="text-white font-medium">
                         {(medicalInfo && medicalInfo.allergies) || user.allergies || 'None'}
                       </span>
                     </div>
-                    <div className="flex">
-                      <span className="w-32 flex-shrink-0 text-gray-500">Medications:</span>
-                      <span className="text-gray-900 font-medium">
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <span className="block text-[#94A3B8] text-sm">Medications</span>
+                      <span className="text-white font-medium">
                         {(medicalInfo && medicalInfo.medications) || user.medications || 'None'}
                       </span>
                     </div>
                   </div>
                   
-                  <div className="space-y-3">
-                    <div className="flex">
-                      <span className="w-40 flex-shrink-0 text-gray-500">Medical Conditions:</span>
-                      <span className="text-gray-900 font-medium">
+                  <div className="space-y-4">
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <span className="block text-[#94A3B8] text-sm">Medical Conditions</span>
+                      <span className="text-white font-medium">
                         {(medicalInfo && medicalInfo.medicalConditions) || user.medicalConditions || 'None'}
                       </span>
                     </div>
-                    <div className="flex">
-                      <span className="w-40 flex-shrink-0 text-gray-500">Past Surgeries:</span>
-                      <span className="text-gray-900 font-medium">
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <span className="block text-[#94A3B8] text-sm">Past Surgeries</span>
+                      <span className="text-white font-medium">
                         {(medicalInfo && medicalInfo.pastSurgeries) || user.pastSurgeries || 'None'}
                       </span>
                     </div>
-                    <div className="flex">
-                      <span className="w-40 flex-shrink-0 text-gray-500">Additional Notes:</span>
-                      <span className="text-gray-900 font-medium">
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <span className="block text-[#94A3B8] text-sm">Additional Notes</span>
+                      <span className="text-white font-medium">
                         {(medicalInfo && medicalInfo.additionalNotes) || user.additionalNotes || 'None'}
                       </span>
                     </div>
@@ -423,12 +454,14 @@ function UserDetail({ userId, onBack }) {
                 </div>
               </div>
             ) : (
-              <div className="bg-gray-50 p-6 rounded-lg text-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="text-gray-500 text-lg mb-1">No Medical Information Available</p>
-                <p className="text-gray-400 text-sm">This user has not provided any medical information yet.</p>
+              <div className="backdrop-blur-sm bg-white/5 rounded-xl shadow-lg border border-white/10 p-8 text-center">
+                <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 border border-white/10">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-[#94A3B8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <p className="text-white text-lg mb-1">No Medical Information Available</p>
+                <p className="text-[#94A3B8] text-sm">This user has not provided any medical information yet.</p>
               </div>
             )}
           </div>
@@ -437,39 +470,34 @@ function UserDetail({ userId, onBack }) {
         {activeTab === 'trips' && (
           <div>
             {trips.length > 0 ? (
-              <div className="overflow-x-auto bg-gray-50 rounded-lg">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+              <div className="overflow-x-auto backdrop-blur-sm bg-white/5 rounded-xl shadow-lg border border-white/10">
+                <table className="min-w-full divide-y divide-white/10">
+                  <thead>
+                    <tr className="bg-white/5">
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Date</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Driver</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Status</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Location</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-[#94A3B8] uppercase tracking-wider">Duration</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-gray-50 divide-y divide-gray-200">
+                  <tbody className="divide-y divide-white/10">
                     {trips.map((trip) => (
-                      <tr key={trip.id} className="hover:bg-gray-100 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <tr key={trip.id} className="hover:bg-white/5 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                           {formatDate(trip.timestamp || trip.createdAt)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                           {trip.driverName || (trip.driverId ? trip.driverId.substring(0, 8) : 'N/A')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {getStatusBadge(trip.status)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {trip.locationDescription || 
-                           (trip.location ? 
-                             `[${typeof trip.location.latitude === 'number' ? trip.location.latitude.toFixed(6) : trip.location.latitude}, ${typeof trip.location.longitude === 'number' ? trip.location.longitude.toFixed(6) : trip.location.longitude}]` : 
-                             'Unknown location')}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                          {trip.pickupLocation || trip.pickupAddress || 'Unknown'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {trip.completedAt && trip.acceptedAt ? 
-                            `${Math.round((trip.completedAt.seconds - trip.acceptedAt.seconds) / 60)} mins` : 
-                            'N/A'}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                          {trip.duration ? `${trip.duration} min` : 'N/A'}
                         </td>
                       </tr>
                     ))}
@@ -477,12 +505,14 @@ function UserDetail({ userId, onBack }) {
                 </table>
               </div>
             ) : (
-              <div className="bg-gray-50 p-6 rounded-lg text-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="text-gray-500 text-lg mb-1">No Trip History Found</p>
-                <p className="text-gray-400 text-sm">This user has not requested any ambulance trips yet.</p>
+              <div className="backdrop-blur-sm bg-white/5 rounded-xl shadow-lg border border-white/10 p-8 text-center">
+                <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 border border-white/10">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-[#94A3B8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </div>
+                <p className="text-white text-lg mb-1">No Trip History</p>
+                <p className="text-[#94A3B8] text-sm">This user has not taken any emergency trips yet.</p>
               </div>
             )}
           </div>

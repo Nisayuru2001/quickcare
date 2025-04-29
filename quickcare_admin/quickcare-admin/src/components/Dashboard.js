@@ -157,24 +157,36 @@ function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-[#0F172A] to-[#1E293B] relative overflow-hidden">
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden opacity-10 pointer-events-none">
+        <div className="absolute w-96 h-96 bg-[#3B82F6] rounded-full -top-20 -left-20 blur-3xl animate-pulse"></div>
+        <div className="absolute w-96 h-96 bg-[#0D9488] rounded-full bottom-0 right-0 blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+        <div className="absolute w-64 h-64 bg-[#4F46E5] rounded-full top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 blur-3xl animate-pulse" style={{animationDelay: '4s'}}></div>
+      </div>
+      
+      {/* Animated pattern grid */}
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAxOGMwLTkuOTQtOC4wNi0xOC0xOC0xOHY2YzYuNjI3IDAgMTIgNS4zNzMgMTIgMTJoNnptLTYgNmMwLTYuNjI3LTUuMzczLTEyLTEyLTEydjZjMy4zMTQgMCA2IDIuNjg2IDYgNmg2eiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIvPjwvZz48L3N2Zz4=')] opacity-10"></div>
+      
       {/* Header */}
-      <header className="bg-indigo-600 shadow-md">
+      <header className="relative z-10 backdrop-blur-sm bg-[#0F172A]/70 shadow-lg border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
           <div className="flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm11 1H6v8l4-2 4 2V6z" clipRule="evenodd" />
-            </svg>
-            <h1 className="ml-3 text-2xl font-bold text-white">Smart Ambulance</h1>
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-tr from-[#0D9488] to-[#3B82F6] shadow-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm11 1H6v8l4-2 4 2V6z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <h1 className="ml-3 text-2xl font-bold text-white tracking-tight">Smart Ambulance</h1>
           </div>
           <div className="flex items-center space-x-4">
-            <div className="text-sm text-indigo-100">
-              <span className="block">{currentUser?.email}</span>
+            <div className="hidden md:block text-sm text-[#94A3B8] bg-white/5 py-2 px-3 rounded-lg border border-white/10">
+              <span className="block text-white">{currentUser?.email}</span>
               <span className="block text-xs opacity-75">Administrator</span>
             </div>
             <button 
               onClick={handleLogout}
-              className="bg-indigo-700 hover:bg-indigo-800 text-white text-sm font-medium py-2 px-3 rounded-md flex items-center"
+              className="bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-medium py-2 px-3 rounded-lg flex items-center transition-colors shadow-lg"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -186,52 +198,76 @@ function Dashboard() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+      <main className="relative z-10 max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         {/* Tabs */}
-        <div className="border-b border-gray-200 mb-6">
-          <nav className="-mb-px flex space-x-8">
+        <div className="backdrop-blur-sm bg-white/5 rounded-xl px-4 py-1 border border-white/10 shadow-lg mb-8">
+          <nav className="flex justify-between overflow-x-auto">
             <button
               onClick={() => setActiveTab('drivers')}
-              className={`${
+              className={`relative py-3 px-4 rounded-lg font-medium text-sm transition-colors ${
                 activeTab === 'drivers'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  ? 'text-white bg-white/10'
+                  : 'text-[#94A3B8] hover:text-white hover:bg-white/5'
+              }`}
             >
-              Driver Management
+              <div className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Driver Management
+              </div>
+              {activeTab === 'drivers' && <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-12 h-1 bg-gradient-to-r from-[#3B82F6] to-[#4F46E5] rounded-t-lg"></div>}
             </button>
             <button
               onClick={() => setActiveTab('tracking')}
-              className={`${
+              className={`relative py-3 px-4 rounded-lg font-medium text-sm transition-colors ${
                 activeTab === 'tracking'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  ? 'text-white bg-white/10'
+                  : 'text-[#94A3B8] hover:text-white hover:bg-white/5'
+              }`}
             >
-              Driver Tracking
+              <div className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                </svg>
+                Driver Tracking
+              </div>
+              {activeTab === 'tracking' && <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-12 h-1 bg-gradient-to-r from-[#3B82F6] to-[#4F46E5] rounded-t-lg"></div>}
             </button>
             <button
               onClick={() => {
                 setActiveTab('users');
                 setCurrentUserId(null);
               }}
-              className={`${
+              className={`relative py-3 px-4 rounded-lg font-medium text-sm transition-colors ${
                 activeTab === 'users' || activeTab === 'userDetails'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  ? 'text-white bg-white/10'
+                  : 'text-[#94A3B8] hover:text-white hover:bg-white/5'
+              }`}
             >
-              User Management
+              <div className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                User Management
+              </div>
+              {(activeTab === 'users' || activeTab === 'userDetails') && <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-12 h-1 bg-gradient-to-r from-[#3B82F6] to-[#4F46E5] rounded-t-lg"></div>}
             </button>
             <button
               onClick={() => setActiveTab('trips')}
-              className={`${
+              className={`relative py-3 px-4 rounded-lg font-medium text-sm transition-colors ${
                 activeTab === 'trips'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  ? 'text-white bg-white/10'
+                  : 'text-[#94A3B8] hover:text-white hover:bg-white/5'
+              }`}
             >
-              Trip History
+              <div className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+                Trip History
+              </div>
+              {activeTab === 'trips' && <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-12 h-1 bg-gradient-to-r from-[#3B82F6] to-[#4F46E5] rounded-t-lg"></div>}
             </button>
           </nav>
         </div>
@@ -239,8 +275,13 @@ function Dashboard() {
         {activeTab === 'drivers' && (
           <>
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Driver Management</h2>
-              <button className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 px-4 rounded-md flex items-center">
+              <h2 className="text-2xl font-bold text-white flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 mr-2 text-[#3B82F6]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Driver Management
+              </h2>
+              <button className="bg-gradient-to-r from-[#3B82F6] to-[#4F46E5] hover:from-[#60A5FA] hover:to-[#6366F1] text-white text-sm font-medium py-2 px-4 rounded-lg flex items-center transition-colors shadow-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
@@ -250,110 +291,125 @@ function Dashboard() {
             
             {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="backdrop-blur-sm bg-white/5 rounded-xl p-6 border border-white/10 shadow-lg">
                 <div className="flex items-center">
-                  <div className="p-3 rounded-full bg-indigo-100 text-indigo-600">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-[#3B82F6]/20 border border-[#3B82F6]/30 text-[#3B82F6]">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
                   </div>
                   <div className="ml-5">
-                    <p className="text-gray-500 text-sm">Total Drivers</p>
-                    <h3 className="text-2xl font-bold text-gray-900">{stats.total}</h3>
+                    <p className="text-[#94A3B8] text-sm">Total Drivers</p>
+                    <h3 className="text-2xl font-bold text-white">{stats.total}</h3>
                   </div>
                 </div>
               </div>
               
-              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="backdrop-blur-sm bg-white/5 rounded-xl p-6 border border-white/10 shadow-lg">
                 <div className="flex items-center">
-                  <div className="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-[#D97706]/20 border border-[#D97706]/30 text-[#D97706]">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div className="ml-5">
-                    <p className="text-gray-500 text-sm">Pending</p>
-                    <h3 className="text-2xl font-bold text-gray-900">{stats.pending}</h3>
+                    <p className="text-[#94A3B8] text-sm">Pending</p>
+                    <h3 className="text-2xl font-bold text-white">{stats.pending}</h3>
                   </div>
                 </div>
               </div>
               
-              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="backdrop-blur-sm bg-white/5 rounded-xl p-6 border border-white/10 shadow-lg">
                 <div className="flex items-center">
-                  <div className="p-3 rounded-full bg-green-100 text-green-600">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-[#0D9488]/20 border border-[#0D9488]/30 text-[#0D9488]">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div className="ml-5">
-                    <p className="text-gray-500 text-sm">Approved</p>
-                    <h3 className="text-2xl font-bold text-gray-900">{stats.approved}</h3>
+                    <p className="text-[#94A3B8] text-sm">Approved</p>
+                    <h3 className="text-2xl font-bold text-white">{stats.approved}</h3>
                   </div>
                 </div>
               </div>
               
-              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="backdrop-blur-sm bg-white/5 rounded-xl p-6 border border-white/10 shadow-lg">
                 <div className="flex items-center">
-                  <div className="p-3 rounded-full bg-red-100 text-red-600">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-[#DC2626]/20 border border-[#DC2626]/30 text-[#DC2626]">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div className="ml-5">
-                    <p className="text-gray-500 text-sm">Rejected</p>
-                    <h3 className="text-2xl font-bold text-gray-900">{stats.rejected}</h3>
+                    <p className="text-[#94A3B8] text-sm">Rejected</p>
+                    <h3 className="text-2xl font-bold text-white">{stats.rejected}</h3>
                   </div>
                 </div>
               </div>
             </div>
             
             {loading ? (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-center py-12">
-                <svg className="animate-spin h-10 w-10 text-indigo-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 shadow-lg p-6 text-center py-12">
+                <svg className="animate-spin h-10 w-10 text-[#3B82F6] mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <p className="text-gray-500">Loading driver data...</p>
+                <p className="text-[#94A3B8]">Loading driver data...</p>
               </div>
             ) : (
-              <DriverList 
-                drivers={drivers} 
-                onApprove={handleApproveDriver} 
-                onReject={handleRejectDriver} 
-              />
+              <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 shadow-lg overflow-hidden">
+                <DriverList 
+                  drivers={drivers} 
+                  onApprove={handleApproveDriver} 
+                  onReject={handleRejectDriver} 
+                />
+              </div>
             )}
           </>
         )}
 
         {activeTab === 'tracking' && (
-          <DriverTrackingPage />
+          <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 shadow-lg overflow-hidden">
+            <DriverTrackingPage />
+          </div>
         )}
 
         {activeTab === 'users' && (
           <>
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">User Management</h2>
-              <div className="text-sm text-gray-500">
-                Total Users: {users.length}
+              <h2 className="text-2xl font-bold text-white flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 mr-2 text-[#3B82F6]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                User Management
+              </h2>
+              <div className="text-sm py-1 px-3 rounded-lg bg-white/5 border border-white/10 text-[#94A3B8]">
+                Total Users: <span className="text-white font-medium">{users.length}</span>
               </div>
             </div>
             
-            <UserList 
-              users={users} 
-              onViewDetails={handleViewUserDetails} 
-            />
+            <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 shadow-lg overflow-hidden">
+              <UserList 
+                users={users} 
+                onViewDetails={handleViewUserDetails} 
+              />
+            </div>
           </>
         )}
 
         {activeTab === 'userDetails' && currentUserId && (
-          <UserDetail 
-            userId={currentUserId} 
-            onBack={handleBackToUserList} 
-          />
+          <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 shadow-lg overflow-hidden">
+            <UserDetail 
+              userId={currentUserId} 
+              onBack={handleBackToUserList} 
+            />
+          </div>
         )}
 
         {activeTab === 'trips' && (
-          <TripHistoryManagement />
+          <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 shadow-lg overflow-hidden">
+            <TripHistoryManagement />
+          </div>
         )}
       </main>
     </div>
