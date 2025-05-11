@@ -1,3 +1,5 @@
+// lib/services/location_service.dart
+
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -15,7 +17,7 @@ class LocationService {
     distanceFilter: 10, // Update every 10 meters
   );
 
-  /// Initialize location tracking service
+  /// Initialize location tracking service with improved error handling
   static Future<bool> initLocationTracking() async {
     // Check if already tracking
     if (_isTracking) return true;
@@ -23,32 +25,68 @@ class LocationService {
     try {
       // Check permissions
       bool hasPermission = await _checkLocationPermission();
-      if (!hasPermission) return false;
+      if (!hasPermission) {
+        print('Location permission denied');
+        return false;
+      }
 
       // Check if location is enabled
       bool isLocationEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!isLocationEnabled) return false;
+      if (!isLocationEnabled) {
+        print('Location services disabled');
+        return false;
+      }
 
       // Get current user
       User? currentUser = _auth.currentUser;
-      if (currentUser == null) return false;
+      if (currentUser == null) {
+        print('No authenticated user found');
+        return false;
+      }
 
-      // Get current location first and update immediately
-      Position initialPosition = await Geolocator.getCurrentPosition();
-      await _updateDriverLocation(initialPosition, currentUser.uid, true);
+      // Try to get current location with a timeout
+      Position? initialPosition;
+      try {
+        initialPosition = await Geolocator.getCurrentPosition()
+            .timeout(const Duration(seconds: 10));
+      } catch (e) {
+        print('Error getting initial position: $e');
+        // We'll try with last known position as fallback
+        initialPosition = await Geolocator.getLastKnownPosition();
 
-      // Start listening to location updates
+        if (initialPosition == null) {
+          print('Could not get any position data');
+          // We'll continue even without position data
+        }
+      }
+
+      // Update driver location if we have position data
+      if (initialPosition != null) {
+        await _updateDriverLocation(initialPosition, currentUser.uid, true)
+            .catchError((e) {
+          print('Error updating initial driver location: $e');
+          // Continue even if update fails
+        });
+      }
+
+      // Start listening to location updates with error handling
       _positionStreamSubscription = Geolocator.getPositionStream(
           locationSettings: _locationSettings
-      ).listen((Position position) async {
-        await _updateDriverLocation(position, currentUser.uid, true);
-      });
+      ).listen(
+            (Position position) async {
+          await _updateDriverLocation(position, currentUser.uid, true)
+              .catchError((e) {
+            print('Error updating driver location from stream: $e');
+          });
+        },
+        onError: (e) {
+          print('Error in position stream: $e');
+          // Keep _isTracking true even with errors, as the stream continues
+        },
+      );
 
       _isTracking = true;
-
-      // Add app termination listener
-      // Note: This is best-effort and may not always run depending on how app is terminated
-      // For reliable offline detection, you'd need additional mechanisms like server heartbeats
+      print('Location tracking initialized successfully');
       return true;
     } catch (e) {
       print('Error initializing location tracking: $e');
@@ -56,36 +94,50 @@ class LocationService {
     }
   }
 
-  /// Check and request location permissions
+  /// Check and request location permissions with improved handling
   static Future<bool> _checkLocationPermission() async {
-    LocationPermission permission = await Geolocator.checkPermission();
+    try {
+      // First check with Permission Handler for clearer error messages
+      PermissionStatus permission = await Permission.location.status;
 
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+      if (permission == PermissionStatus.denied) {
+        permission = await Permission.location.request();
+      }
+
+      if (permission == PermissionStatus.permanentlyDenied) {
+        print('Location permission permanently denied');
+        return false;
+      }
+
+      // Fall back to Geolocator's permission handling
+      if (permission != PermissionStatus.granted) {
+        LocationPermission geoPermission = await Geolocator.checkPermission();
+
+        if (geoPermission == LocationPermission.denied) {
+          geoPermission = await Geolocator.requestPermission();
+        }
+
+        return geoPermission != LocationPermission.denied &&
+            geoPermission != LocationPermission.deniedForever;
+      }
+
+      return true;
+    } catch (e) {
+      print('Error checking location permission: $e');
+      return false;
     }
-
-    return permission != LocationPermission.denied &&
-        permission != LocationPermission.deniedForever;
   }
 
-  /// Update driver location in Firestore
+  /// Update driver location in Firestore with retry mechanism
   static Future<void> _updateDriverLocation(
       Position position,
       String driverId,
-      bool isOnline
+      bool isOnline,
+      {int retryCount = 0}
       ) async {
     try {
-      // Get driver's profile document
-      DocumentSnapshot driverDoc = await _firestore
-          .collection('driver_profiles')
-          .doc(driverId)
-          .get();
-
-      // Update driver location document
-      await _firestore
-          .collection('driver_locations')
-          .doc(driverId)
-          .set({
+      // Prepare location data
+      Map<String, dynamic> locationData = {
         'driverId': driverId,
         'location': {
           'latitude': position.latitude,
@@ -97,14 +149,58 @@ class LocationService {
         'heading': position.heading,
         'timestamp': FieldValue.serverTimestamp(),
         'isOnline': isOnline,
-        'status': driverDoc.exists ? driverDoc['status'] : 'unknown',
-      }, SetOptions(merge: true));
+      };
+
+      // Try to get driver profile status if needed
+      try {
+        DocumentSnapshot driverDoc = await _firestore
+            .collection('driver_profiles')
+            .doc(driverId)
+            .get();
+
+        if (driverDoc.exists) {
+          Map<String, dynamic> data = driverDoc.data() as Map<String, dynamic>;
+          locationData['status'] = data['status'] ?? 'unknown';
+
+          // Include name and phone if available for map display
+          if (data.containsKey('fullName')) {
+            locationData['driverName'] = data['fullName'];
+          }
+
+          if (data.containsKey('phoneNumber')) {
+            locationData['phoneNumber'] = data['phoneNumber'];
+          }
+        } else {
+          locationData['status'] = 'unknown';
+        }
+      } catch (e) {
+        // If we can't get driver status, continue with default
+        print('Error getting driver status: $e');
+        locationData['status'] = 'unknown';
+      }
+
+      // Update driver location document
+      await _firestore
+          .collection('driver_locations')
+          .doc(driverId)
+          .set(locationData, SetOptions(merge: true));
+
     } catch (e) {
       print('Error updating driver location: $e');
+
+      // Implement retry with backoff for network errors
+      if (retryCount < 3 && e is FirebaseException) {
+        final delay = Duration(seconds: 1 * (retryCount + 1));
+        print('Retrying update after $delay (attempt ${retryCount + 1}/3)');
+        await Future.delayed(delay);
+        return _updateDriverLocation(position, driverId, isOnline, retryCount: retryCount + 1);
+      } else {
+        rethrow;
+      }
     }
   }
 
-  /// Stop location tracking service
+  /// Stop location tracking service with improved cleanup
   static Future<void> stopLocationTracking() async {
     try {
       if (_positionStreamSubscription != null) {
@@ -138,8 +234,11 @@ class LocationService {
       }
 
       _isTracking = false;
+      print('Location tracking stopped successfully');
     } catch (e) {
       print('Error stopping location tracking: $e');
+      // Reset tracking state even if there are errors
+      _isTracking = false;
     }
   }
 

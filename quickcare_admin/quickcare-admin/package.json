@@ -21,6 +21,8 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "test:coverage": "react-scripts test --coverage",
+    "test:report": "react-scripts test --json --outputFile=test-report.json",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -45,5 +47,17 @@
     "@tailwindcss/forms": "^0.5.10",
     "autoprefixer": "^10.4.21",
     "tailwindcss": "^3.4.17"
+  },
+  "jest": {
+    "collectCoverageFrom": [
+      "src/**/*.{js,jsx}",
+      "!src/index.js",
+      "!src/reportWebVitals.js"
+    ],
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "json-summary"
+    ]
   }
 }

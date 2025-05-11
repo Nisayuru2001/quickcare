@@ -70,20 +70,37 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         final data = doc.data() as Map<String, dynamic>;
         print('Profile data: $data');
 
+        // Check if URL strings are actually strings and not null
+        String? policeReportUrl = data['policeReportUrl'] as String?;
+        String? drivingLicenseUrl = data['drivingLicenseUrl'] as String?;
+
+        print('Loading Police Report URL: $policeReportUrl');
+        print('Loading Driving License URL: $drivingLicenseUrl');
+
         setState(() {
           _driverProfile = data;
           _fullNameController.text = data['fullName'] ?? '';
           _phoneController.text = data['phoneNumber'] ?? '';
           _licenseController.text = data['licenseNumber'] ?? '';
           _emailController.text = data['email'] ?? '';
-          _policeReportUrl = data['policeReportUrl'];
-          _drivingLicenseUrl = data['drivingLicenseUrl'];
-        });
 
-        print('Police Report URL: $_policeReportUrl');
-        print('Driving License URL: $_drivingLicenseUrl');
+          // Set the URLs
+          _policeReportUrl = policeReportUrl;
+          _drivingLicenseUrl = drivingLicenseUrl;
+
+          // Reset upload flags
+          _isUploadingPoliceReport = false;
+          _isUploadingLicense = false;
+        });
       } else {
         print('No profile document found');
+        setState(() {
+          _driverProfile = {};
+          _policeReportUrl = null;
+          _drivingLicenseUrl = null;
+          _isUploadingPoliceReport = false;
+          _isUploadingLicense = false;
+        });
       }
     } catch (e) {
       print('Error loading driver profile: $e');
@@ -92,6 +109,13 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
           SnackBar(content: Text('Failed to load profile: $e')),
         );
       }
+
+      setState(() {
+        _policeReportUrl = null;
+        _drivingLicenseUrl = null;
+        _isUploadingPoliceReport = false;
+        _isUploadingLicense = false;
+      });
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -119,7 +143,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Profile updated successfully'),
             backgroundColor: Color(0xFF4CAF50),
           ),
@@ -148,6 +172,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     if (documentType == 'driving_license' && _isUploadingLicense) return;
 
     // Set specific uploading state
+    if (!mounted) return; // Early exit if widget is disposed
     setState(() {
       if (documentType == 'police_report') {
         _isUploadingPoliceReport = true;
@@ -157,6 +182,9 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     });
 
     print('Starting document upload for $documentType');
+
+    // Dialog reference to ensure we can close it properly
+    BuildContext? dialogContext;
 
     try {
       String? userId = _authInstance.currentUser?.uid;
@@ -171,6 +199,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
           context: context,
           barrierDismissible: false,
           builder: (BuildContext context) {
+            dialogContext = context; // Store dialog context
             return Center(
               child: Container(
                 padding: const EdgeInsets.all(20),
@@ -203,6 +232,15 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         documentType: documentType,
       );
 
+      // Close the dialog right after upload completes
+      if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+        Navigator.pop(dialogContext!);
+        dialogContext = null;
+      }
+
+      // Exit if the widget is disposed
+      if (!mounted) return;
+
       if (url != null) {
         print('Upload successful, URL: $url');
 
@@ -210,8 +248,10 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         setState(() {
           if (documentType == 'police_report') {
             _policeReportUrl = url;
+            _isUploadingPoliceReport = false;
           } else if (documentType == 'driving_license') {
             _drivingLicenseUrl = url;
+            _isUploadingLicense = false;
           }
         });
 
@@ -230,77 +270,35 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
               .doc(userId)
               .update(updateData);
           print('Firestore update successful');
+
+          // Reload profile data to ensure UI is in sync with database
+          await _loadDriverProfile();
         }
 
         if (mounted) {
-          // Close the loading dialog
-          Navigator.of(context).pop();
-
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
                 children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 12),
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 12),
                   Text('${documentType == 'police_report' ? 'Police Report' : 'Driving License'} uploaded successfully'),
                 ],
               ),
-              backgroundColor: const Color(0xFF4CAF50),
+              backgroundColor: Color(0xFF4CAF50),
               behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(20),
+              margin: EdgeInsets.all(20),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           );
         }
       } else {
-        print('No file selected');
-        if (mounted) {
-          // Close the loading dialog if it's showing
-          Navigator.of(context).pop();
+        // No file selected or canceled
+        print('No file selected or upload canceled');
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: const [
-                  Icon(Icons.info_outline, color: Colors.white),
-                  SizedBox(width: 12),
-                  Text('No file selected'),
-                ],
-              ),
-              backgroundColor: Colors.orange,
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(20),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      print('Error uploading document: $e');
-      if (mounted) {
-        // Close the loading dialog if it's showing
-        Navigator.of(context).pop();
+        if (!mounted) return;
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text('Failed to upload document: ${e.toString()}'),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(20),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
+        // Reset loading state
         setState(() {
           if (documentType == 'police_report') {
             _isUploadingPoliceReport = false;
@@ -308,14 +306,219 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
             _isUploadingLicense = false;
           }
         });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.white),
+                  SizedBox(width: 12),
+                  Text('No file selected'),
+                ],
+              ),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+              margin: EdgeInsets.all(20),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error uploading document: $e');
+
+      // Close dialog on error
+      if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+        Navigator.pop(dialogContext!);
+        dialogContext = null;
+      }
+
+      if (!mounted) return;
+
+      // Reset loading state on error
+      setState(() {
+        if (documentType == 'police_report') {
+          _isUploadingPoliceReport = false;
+        } else if (documentType == 'driving_license') {
+          _isUploadingLicense = false;
+        }
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text('Failed to upload document: ${e.toString()}'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.all(20),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: Duration(seconds: 5),
+          ),
+        );
       }
     }
   }
 
-  Future<void> _viewDocument(String url) async {
+  Future<void> _deleteDocument(String documentType) async {
+    if (!mounted) return;
+
+    // Get document URL based on type
+    String? documentUrl;
+    if (documentType == 'police_report') {
+      documentUrl = _policeReportUrl;
+    } else if (documentType == 'driving_license') {
+      documentUrl = _drivingLicenseUrl;
+    }
+
+    // If no document exists, nothing to delete
+    if (documentUrl == null || documentUrl.isEmpty) {
+      return;
+    }
+
+    // Confirm deletion with dialog
+    bool confirmDelete = false;
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Delete Document?"),
+        content: Text("Are you sure you want to delete this ${documentType == 'police_report' ? 'Police Report' : 'Driving License'}? This action cannot be undone."),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              confirmDelete = true;
+              Navigator.of(context).pop();
+            },
+            child: Text(
+              "Delete",
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!confirmDelete) return;
+
+    // Show loading dialog
+    BuildContext? dialogContext;
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          dialogContext = context;
+          return Center(
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: primaryColor),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Deleting document...',
+                    style: TextStyle(
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+
     try {
-      if (url.isEmpty) {
-        throw Exception('Document URL is empty');
+      // 1. Delete from Firebase Storage
+      bool deleted = await DocumentUploadService.deleteDocument(documentUrl);
+
+      if (deleted) {
+        // 2. Update Firestore document
+        String userId = _authInstance.currentUser!.uid;
+        Map<String, dynamic> updateData = {};
+
+        if (documentType == 'police_report') {
+          updateData['policeReportUrl'] = FieldValue.delete();
+        } else if (documentType == 'driving_license') {
+          updateData['drivingLicenseUrl'] = FieldValue.delete();
+        }
+
+        await _firestore
+            .collection('driver_profiles')
+            .doc(userId)
+            .update(updateData);
+
+        // 3. Update local state
+        if (mounted) {
+          setState(() {
+            if (documentType == 'police_report') {
+              _policeReportUrl = null;
+            } else if (documentType == 'driving_license') {
+              _drivingLicenseUrl = null;
+            }
+          });
+        }
+
+        // 4. Close dialog and show success message
+        if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+          Navigator.pop(dialogContext!);
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Document deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        throw Exception('Failed to delete document from storage');
+      }
+    } catch (e) {
+      print('Error deleting document: $e');
+
+      // Close dialog
+      if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+        Navigator.pop(dialogContext!);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting document: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _viewDocument(String? url) async {
+    try {
+      if (url == null || url.isEmpty) {
+        throw Exception('Document URL is empty or null');
       }
 
       final Uri uri = Uri.parse(url);
@@ -331,8 +534,8 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.error_outline, color: Colors.white),
-                const SizedBox(width: 12),
+                Icon(Icons.error_outline, color: Colors.white),
+                SizedBox(width: 12),
                 Expanded(
                   child: Text('Could not open document: ${e.toString()}'),
                 ),
@@ -340,7 +543,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
             ),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(20),
+            margin: EdgeInsets.all(20),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
@@ -396,7 +599,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
             ),
 
             _isLoading
-                ? const Expanded(
+                ? Expanded(
               child: Center(
                 child: CircularProgressIndicator(
                   color: Color(0xFFE53935),
@@ -442,7 +645,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                               ),
                               child: Text(
                                 _capitalizeStatus(_driverProfile?['status'] ?? 'unknown'),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 12,
@@ -560,7 +763,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                         documentUrl: _policeReportUrl,
                         isUploading: _isUploadingPoliceReport,
                         onUpload: () => _uploadDocument('police_report'),
-                        onView: () => _viewDocument(_policeReportUrl!),
+                        onView: () => _viewDocument(_policeReportUrl),
                         cardColor: cardColorThemed,
                         textColor: textColorThemed,
                       ),
@@ -574,7 +777,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                         documentUrl: _drivingLicenseUrl,
                         isUploading: _isUploadingLicense,
                         onUpload: () => _uploadDocument('driving_license'),
-                        onView: () => _viewDocument(_drivingLicenseUrl!),
+                        onView: () => _viewDocument(_drivingLicenseUrl),
                         cardColor: cardColorThemed,
                         textColor: textColorThemed,
                       ),
@@ -624,8 +827,8 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton.icon(
-                          icon: const Icon(Icons.logout),
-                          label: const Text('Logout'),
+                          icon: Icon(Icons.logout),
+                          label: Text('Logout'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.grey[300],
                             foregroundColor: textColor,
@@ -659,6 +862,10 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     required Color cardColor,
     required Color textColor,
   }) {
+    // Check if document URL is valid
+    final bool hasValidDocument = documentUrl != null && documentUrl.isNotEmpty;
+    final String documentType = title == 'Police Report' ? 'police_report' : 'driving_license';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -673,99 +880,126 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: primaryColor,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: textColor,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      documentUrl != null ? 'Document uploaded' : 'No document uploaded',
-                      style: TextStyle(
-                        color: documentUrl != null ? Colors.green : textColor.withOpacity(0.6),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+      Row(
+      children: [
+      Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: primaryColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        icon,
+        color: primaryColor,
+        size: 24,
+      ),
+    ),
+    const SizedBox(width: 16),
+    Expanded(
+    child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+    Text(
+    title,
+    style: TextStyle(
+    color: textColor,
+    fontSize: 16,
+    fontWeight: FontWeight.bold,
+    ),
+    ),
+    const SizedBox(height: 4),
+    Row(
+    children: [
+    Icon(
+    hasValidDocument ? Icons.check_circle : Icons.error_outline,
+    size: 16,
+    color: hasValidDocument ? Colors.green : Colors.grey,
+    ),
+    const SizedBox(width: 4),
+    Text(
+    hasValidDocument ? 'Document uploaded' : 'No document uploaded',
+    style: TextStyle(
+    color: hasValidDocument ? Colors.green : textColor.withOpacity(0.6),
+    fontSize: 14,
+    ),
+    ),
+    ],
+    ),
+    ],
+    ),
+    ),
+    ],
+    ),
+    const SizedBox(height: 16),
+    if (hasValidDocument)
+    // Document exists - show view and delete options
+    Row(
+    children: [
+    Expanded(
+    child: OutlinedButton.icon(
+    icon: Icon(Icons.visibility_outlined),
+    label: Text('View'),
+    style: OutlinedButton.styleFrom(
+    foregroundColor: primaryColor,
+    side: BorderSide(color: primaryColor),
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(12),
+    ),
+    ),
+    onPressed: onView,
+    ),
+    ),
+    const SizedBox(width: 12),
+    Expanded(
+    child: OutlinedButton.icon(
+    icon: Icon(Icons.delete_outline),
+    label: Text('Delete'),
+    style: OutlinedButton.styleFrom(
+    foregroundColor: Colors.red,
+    side: BorderSide(color: Colors.red),
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(12),
+    ),
+    ),
+    onPressed: isUploading ? null : () => _deleteDocument(documentType),
+    ),
+    ),
+    ],
+    )
+    else
+    // No document - show upload button
+    SizedBox(
+    width: double.infinity,
+    child: ElevatedButton.icon(
+    icon: Icon(Icons.upload_file),
+    label: Text(
+    'Upload Document',
+    style: TextStyle(fontWeight: FontWeight.w600),
+    ),
+    style: ElevatedButton.styleFrom(
+    backgroundColor: primaryColor,
+    foregroundColor: Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+      onPressed: isUploading ? null : onUpload,
+    ),
+    ),
+
+            if (isUploading) ...[
+              const SizedBox(height: 12),
+              LinearProgressIndicator(
+                backgroundColor: primaryColor.withOpacity(0.1),
+                valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
               ),
             ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              if (documentUrl != null) ...[
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.visibility_outlined),
-                    label: const Text('View Document'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: primaryColor,
-                      side: BorderSide(color: primaryColor),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: onView,
-                  ),
-                ),
-                const SizedBox(width: 12),
-              ],
-              Expanded(
-                child: ElevatedButton.icon(
-                  icon: Icon(
-                    documentUrl != null ? Icons.refresh : Icons.upload_file,
-                  ),
-                  label: Text(
-                    documentUrl != null ? 'Replace Document' : 'Upload Document',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: isUploading ? null : onUpload,
-                ),
-              ),
-            ],
-          ),
-          if (isUploading) ...[
-            const SizedBox(height: 12),
-            LinearProgressIndicator(
-              backgroundColor: primaryColor.withOpacity(0.1),
-              valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
-            ),
           ],
-        ],
       ),
     );
   }
@@ -807,11 +1041,11 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        borderSide: BorderSide(color: Colors.red, width: 1.5),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        borderSide: BorderSide(color: Colors.red, width: 1.5),
       ),
       disabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
