@@ -113,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(width: 16),
                         const Text(
-                          'SmartAmbulance',
+                          'Quick Care',
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,

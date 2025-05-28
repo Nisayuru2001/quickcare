@@ -137,7 +137,7 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
                         ),
                         const SizedBox(width: 16),
                         const Text(
-                          'SmartAmbulance',
+                          'Quick Care Driver',
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,

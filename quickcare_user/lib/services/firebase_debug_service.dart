@@ -135,7 +135,7 @@ class FirebaseDebugService {
           'medicalConditions': 'None',
           'medications': 'None',
         },
-        'emergencyContact': '123-456-7890',
+        'emergencyEmail': 'test.emergency@example.com',
         'timestamp': FieldValue.serverTimestamp(),
       });
 

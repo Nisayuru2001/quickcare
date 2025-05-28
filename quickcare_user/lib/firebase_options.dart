@@ -59,4 +59,5 @@ class DefaultFirebaseOptions {
     projectId: 'quick-6d8a0',
     storageBucket: 'quick-6d8a0.firebasestorage.app',
   );
+
 }

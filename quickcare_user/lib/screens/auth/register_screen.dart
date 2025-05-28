@@ -136,7 +136,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(width: 16),
                         const Text(
-                          'SmartAmbulance',
+                          'Quick Care',
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,

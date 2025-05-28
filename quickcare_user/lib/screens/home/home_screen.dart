@@ -10,6 +10,11 @@ import 'package:quickcare_user/services/location_service.dart';
 import 'package:quickcare_user/services/theme_service.dart';
 import 'package:quickcare_user/screens/first_aid_screen.dart';
 import 'package:quickcare_user/screens/settings_screen.dart';
+import 'package:quickcare_user/screens/ambulance_booking_screen.dart';
+import 'package:quickcare_user/screens/ongoing_requests_screen.dart';
+import 'package:quickcare_user/screens/emergency_loading_screen.dart';
+import 'package:quickcare_user/services/email_service.dart';
+import 'package:quickcare_user/screens/medical_storage_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(bool)? toggleTheme;
@@ -59,7 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
         requestHelp: _requestEmergencyHelp,
         isDarkMode: _isDarkMode,
       ),
-      const FirstAidScreen(),
+      const MedicalStorageScreen(),
       SettingsScreen(
         onThemeChanged: _toggleTheme,
         isDarkMode: _isDarkMode,
@@ -106,49 +111,31 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isRequestingHelp = true);
 
     try {
-      // Check if profile exists
       if (!_hasProfile) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text(
-                'Please complete your medical profile first',
-                style: TextStyle(color: Colors.white),
-              ),
-              behavior: SnackBarBehavior.floating,
+              content: const Text('Please complete your medical profile first'),
               backgroundColor: primaryColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             ),
           );
-
-          // Navigate to profile tab
           setState(() => _currentIndex = 3);
         }
-
         setState(() => _isRequestingHelp = false);
         return;
       }
 
-      // Check and request location permissions using Geolocator (which shows in-app dialog)
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        if (permission == LocationPermission.denied) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: const Text(
-                  'Location permission is required to request help',
-                  style: TextStyle(color: Colors.white),
-                ),
-                behavior: SnackBarBehavior.floating,
+                content: const Text('Location permission is required'),
                 backgroundColor: primaryColor,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                action: SnackBarAction(
-                  label: 'SETTINGS',
-                  textColor: Colors.white,
-                  onPressed: () => openAppSettings(),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               ),
             );
           }
@@ -157,54 +144,31 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
 
-      // Get current location
-      Position? position;
-      try {
-        position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-          timeLimit: const Duration(seconds: 10),
-        );
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Error getting location: $e',
-                style: const TextStyle(color: Colors.white),
-              ),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: primaryColor,
-            ),
-          );
-        }
-        setState(() => _isRequestingHelp = false);
-        return;
-      }
-
-      if (position == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Could not get your location. Please try again.',
-                style: TextStyle(color: Colors.white),
-              ),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        setState(() => _isRequestingHelp = false);
-        return;
-      }
-
-      // Get user profile data
       String userId = _authInstance.currentUser!.uid;
       DocumentSnapshot profileDoc = await _firestore.collection('user_profiles').doc(userId).get();
       Map<String, dynamic> profileData = profileDoc.data() as Map<String, dynamic>;
 
-      // Create emergency request
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      // Send emergency email
+      try {
+        await EmailService.sendEmergencyAlert(
+          userName: profileData['fullName'] ?? 'Unknown',
+          userLocation: position,
+          userPhone: profileData['phoneNumber'] ?? 'Unknown',
+          emergencyEmail: profileData['emergencyEmail'] ?? '',
+          additionalNotes: profileData['medicalConditions'] ?? 'None',
+        );
+      } catch (emailError) {
+        print('Error sending emergency email: $emailError');
+        // Continue with the emergency request even if email fails
+      }
+
       DocumentReference requestRef = await _firestore.collection('emergency_requests').add({
         'userId': userId,
+        'requesterId': userId,
         'userName': profileData['fullName'] ?? 'Unknown',
         'location': GeoPoint(position.latitude, position.longitude),
         'status': 'pending',
@@ -215,22 +179,20 @@ class _HomeScreenState extends State<HomeScreen> {
           'medications': profileData['medications'] ?? 'None',
         },
         'emergencyContact': profileData['emergencyContact'] ?? 'None',
-        'timestamp': FieldValue.serverTimestamp(),
+        'emergencyEmail': profileData['emergencyEmail'] ?? 'None',
+        'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // Update the document with its ID for easier reference
       await requestRef.update({'id': requestRef.id});
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Emergency help requested! Ambulance will be dispatched soon.',
-              style: TextStyle(color: Colors.white),
+        // Navigate to loading screen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => EmergencyLoadingScreen(
+              requestId: requestRef.id,
             ),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: const Color(0xFF4CAF50),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
@@ -238,21 +200,15 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Error requesting help: $e',
-              style: const TextStyle(color: Colors.white),
-            ),
-            behavior: SnackBarBehavior.floating,
+            content: Text('Error requesting help: $e'),
             backgroundColor: primaryColor,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           ),
         );
       }
     } finally {
       if (mounted) {
         setState(() => _isRequestingHelp = false);
-        // Refresh the main screen to update button state
-        _initializeScreens();
       }
     }
   }
@@ -341,9 +297,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     label: 'Home',
                   ),
                   BottomNavigationBarItem(
-                    icon: Icon(Icons.healing_outlined),
-                    activeIcon: Icon(Icons.healing),
-                    label: 'First Aid',
+                    icon: Icon(Icons.folder_open),
+                    activeIcon: Icon(Icons.folder),
+                    label: 'Medical Storage',
                   ),
                   BottomNavigationBarItem(
                     icon: Icon(Icons.settings_outlined),
@@ -410,14 +366,14 @@ class _HomeMainScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
-                        Icons.medical_services_outlined,
+                        Icons.medical_services,
                         size: 24,
                         color: Colors.white,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'SmartAmbulance',
+                      'Quick Care',
                       style: TextStyle(
                         color: textColor,
                         fontWeight: FontWeight.bold,
@@ -602,14 +558,14 @@ class _HomeMainScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _QuickAccessCard(
-                          icon: Icons.healing,
-                          title: 'First Aid',
-                          description: 'Emergency instructions',
+                          icon: Icons.medical_services_outlined,
+                          title: 'Medical Storage',
+                          description: 'Store medical records',
                           onTap: () {
-                            // Navigate to first aid screen via tab
+                            // Navigate to medical storage screen via tab
                             if (context.findAncestorStateOfType<_HomeScreenState>() != null) {
                               context.findAncestorStateOfType<_HomeScreenState>()!.setState(() {
-                                context.findAncestorStateOfType<_HomeScreenState>()!._currentIndex = 1; // First Aid tab
+                                context.findAncestorStateOfType<_HomeScreenState>()!._currentIndex = 1; // Medical Storage tab
                               });
                             }
                           },
@@ -619,11 +575,16 @@ class _HomeMainScreen extends StatelessWidget {
                       const SizedBox(width: 16),
                       Expanded(
                         child: _QuickAccessCard(
-                          icon: Icons.history,
-                          title: 'History',
-                          description: 'Previous requests',
+                          icon: Icons.local_hospital,
+                          title: 'Ongoing',
+                          description: 'Active requests',
                           onTap: () {
-                            // Navigate to history screen
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => OngoingRequestsScreen(),
+                              ),
+                            );
                           },
                           isDarkMode: isDarkMode,
                         ),
@@ -650,70 +611,12 @@ class _HomeMainScreen extends StatelessWidget {
                   const SizedBox(height: 20),
 
                   // Emergency button
-                  Container(
-                    width: 180, // Reduced size slightly
-                    height: 180, // Reduced size slightly
-                    margin: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: primaryColor.withOpacity(0.2),
-                          blurRadius: 30,
-                          spreadRadius: 5,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Material(
-                      color: primaryColor,
-                      shape: const CircleBorder(),
-                      clipBehavior: Clip.antiAlias,
-                      elevation: 0,
-                      child: InkWell(
-                        onTap: isRequestingHelp ? null : () => requestHelp(),
-                        splashColor: Colors.white.withOpacity(0.1),
-                        highlightColor: Colors.white.withOpacity(0.1),
-                        child: isRequestingHelp
-                            ? const Center(
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 3,
-                          ),
-                        )
-                            : Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.emergency,
-                                  size: 40,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'REQUEST\nHELP',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  _buildEmergencyButton(context),
+
+                  const SizedBox(height: 20),
+
+                  // Ambulance booking card
+                  _buildAmbulanceBookingCard(context),
 
                   const SizedBox(height: 20),
 
@@ -753,6 +656,171 @@ class _HomeMainScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildEmergencyButton(BuildContext context) {
+    return Column(
+      children: [
+        Center(
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 1.0, end: isRequestingHelp ? 1.08 : 1.0),
+            duration: const Duration(milliseconds: 800),
+            curve: Curves.easeInOut,
+            builder: (context, scale, child) {
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 800),
+                width: 180 * scale,
+                height: 180 * scale,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFE53935), Color(0xFFFF5252)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withOpacity(0.4 + (isRequestingHelp ? 0.2 : 0)),
+                      blurRadius: isRequestingHelp ? 40 : 24,
+                      spreadRadius: isRequestingHelp ? 8 : 4,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: Colors.white,
+                    width: 5,
+                  ),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(100),
+                    onTap: () => requestHelp(),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          color: Colors.white,
+                          size: 50,
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          'EMERGENCY',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                            fontFamily: 'Roboto',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 22),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 400),
+          child: Text(
+            isRequestingHelp
+                ? 'Help is on the way'
+                : 'Tap the button for immediate emergency assistance',
+            key: ValueKey(isRequestingHelp),
+            style: const TextStyle(
+              color: Colors.black87,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              fontFamily: 'Roboto',
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAmbulanceBookingCard(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 1.0, end: 1.0),
+      duration: const Duration(milliseconds: 500),
+      builder: (context, scale, child) {
+        return Transform.scale(
+          scale: scale,
+          child: Card(
+            elevation: 8,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            shadowColor: const Color(0xFFE53935).withOpacity(0.2),
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AmbulanceBookingScreen(),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 28.0, horizontal: 20.0),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE53935).withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.local_taxi,
+                        color: Color(0xFFE53935),
+                        size: 36,
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            'Book Ambulance',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFE53935),
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Quickly book an ambulance for yourself or others',
+                            style: TextStyle(
+                              color: Colors.black87,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.arrow_forward_ios,
+                      color: Color(0xFFE53935),
+                      size: 20,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -22,6 +22,7 @@ class _MedicalProfileScreenState extends State<MedicalProfileScreen> {
   String _medicalConditions = '';
   String _medications = '';
   String _emergencyContact = '';
+  String _emergencyEmail = '';
   bool _isLoading = false;
 
   // Blood type options
@@ -51,6 +52,7 @@ class _MedicalProfileScreenState extends State<MedicalProfileScreen> {
           _medicalConditions = data['medicalConditions'] ?? '';
           _medications = data['medications'] ?? '';
           _emergencyContact = data['emergencyContact'] ?? '';
+          _emergencyEmail = data['emergencyEmail'] ?? '';
         });
       }
     } catch (e) {
@@ -85,6 +87,7 @@ class _MedicalProfileScreenState extends State<MedicalProfileScreen> {
         'medicalConditions': _medicalConditions,
         'medications': _medications,
         'emergencyContact': _emergencyContact,
+        'emergencyEmail': _emergencyEmail,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -322,15 +325,54 @@ class _MedicalProfileScreenState extends State<MedicalProfileScreen> {
                           const SizedBox(height: 16),
 
                           // Emergency Contact field
-                          _buildInputLabel('Emergency Contact Number', textColor),
+                          _buildInputLabel('Emergency Contact Number (For Reference)', textColor),
                           const SizedBox(height: 8),
                           TextFormField(
                             initialValue: _emergencyContact,
-                            decoration: _buildInputDecoration('E.g., +94 7X XXX XXXX', Icons.phone_outlined, surfaceColor, primaryColor, textColor),
+                            decoration: _buildInputDecoration(
+                              'E.g., +94 7X XXX XXXX',
+                              Icons.phone_outlined,
+                              surfaceColor,
+                              primaryColor,
+                              textColor,
+                              helperText: 'This number will be used for reference only',
+                              helperStyle: TextStyle(color: textColor.withOpacity(0.6)),
+                            ),
                             keyboardType: TextInputType.phone,
                             validator: (value) =>
                             value?.isEmpty ?? true ? 'Please enter a contact number' : null,
                             onChanged: (value) => _emergencyContact = value,
+                            style: TextStyle(color: textColor),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Emergency Email field
+                          _buildInputLabel('Emergency Email Address (For Reference)', textColor),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            initialValue: _emergencyEmail,
+                            decoration: _buildInputDecoration(
+                              'E.g., emergency@example.com',
+                              Icons.email_outlined,
+                              surfaceColor,
+                              primaryColor,
+                              textColor,
+                              helperText: 'This email will be used for reference only',
+                              helperStyle: TextStyle(color: textColor.withOpacity(0.6)),
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter an email address';
+                              }
+                              // Basic email validation
+                              if (!value.contains('@') || !value.contains('.')) {
+                                return 'Please enter a valid email address';
+                              }
+                              return null;
+                            },
+                            onChanged: (value) => _emergencyEmail = value,
                             style: TextStyle(color: textColor),
                           ),
 
@@ -396,13 +438,23 @@ class _MedicalProfileScreenState extends State<MedicalProfileScreen> {
     );
   }
 
-  InputDecoration _buildInputDecoration(String hint, IconData icon, Color fillColor, Color primaryColor, Color textColor) {
+  InputDecoration _buildInputDecoration(
+    String hint,
+    IconData icon,
+    Color fillColor,
+    Color primaryColor,
+    Color textColor, {
+    String? helperText,
+    TextStyle? helperStyle,
+  }) {
     return InputDecoration(
       hintText: hint,
       hintStyle: TextStyle(
         color: textColor.withOpacity(0.4),
         fontSize: 16,
       ),
+      helperText: helperText,
+      helperStyle: helperStyle,
       prefixIcon: Icon(icon, color: textColor.withOpacity(0.6), size: 22),
       filled: true,
       fillColor: fillColor,

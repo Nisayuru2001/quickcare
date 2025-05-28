@@ -1,11 +1,18 @@
 // lib/screens/profile/driver_profile_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' hide FieldValue;
+import 'package:cloud_firestore/cloud_firestore.dart' as firestore show FieldValue;
+import 'package:cloud_firestore/cloud_firestore.dart' show SetOptions;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:quickcare_driver/services/auth_service.dart';
 import 'package:quickcare_driver/services/document_upload_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import '../documents/driver_documents_screen.dart';
 
 class DriverProfileScreen extends StatefulWidget {
   const DriverProfileScreen({super.key});
@@ -62,31 +69,100 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
     try {
       String userId = _authInstance.currentUser!.uid;
-      print('Loading profile for user: $userId');
-
-      DocumentSnapshot doc = await _firestore.collection('driver_profiles').doc(userId).get();
+      print('MEGA DEBUG: Loading profile for user: $userId');
+      
+      // Make direct call to Firestore
+      print('MEGA DEBUG: Direct Firestore access for driver_profiles document');
+      
+      DocumentReference docRef = _firestore.collection('driver_profiles').doc(userId);
+      DocumentSnapshot doc = await docRef.get();
+      
+      // Very detailed debugging dump
+      if (doc.exists) {
+        final Map<String, dynamic> rawData = doc.data() as Map<String, dynamic>;
+        print('MEGA DEBUG: Raw Firestore document data:');
+        
+        // Show each field with type and value
+        rawData.forEach((key, value) {
+          print('MEGA DEBUG:   Field: $key');
+          print('MEGA DEBUG:     Value: $value');
+          print('MEGA DEBUG:     Type: ${value?.runtimeType}');
+          print('MEGA DEBUG:     Null?: ${value == null}');
+        });
+        
+        // Explicitly check for URL fields
+        print('MEGA DEBUG: Document has policeReportUrl field: ${rawData.containsKey('policeReportUrl')}');
+        print('MEGA DEBUG: Document has drivingLicenseUrl field: ${rawData.containsKey('drivingLicenseUrl')}');
+      } else {
+        print('MEGA DEBUG: NO DOCUMENT FOUND IN FIRESTORE for $userId');
+      }
 
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
-        print('Profile data: $data');
+        
+        // Explicitly check for document URLs in the data
+        String? policeReportUrl;
+        String? drivingLicenseUrl;
+        
+        // Super explicit checks for document URLs
+        print('MEGA DEBUG: Checking for document URLs');
+        
+        // Police report URL check
+        if (data.containsKey('policeReportUrl')) {
+          print('MEGA DEBUG: policeReportUrl field exists in document');
+          var urlValue = data['policeReportUrl'];
+          print('MEGA DEBUG: policeReportUrl value: $urlValue');
+          print('MEGA DEBUG: policeReportUrl value type: ${urlValue?.runtimeType}');
+          
+          if (urlValue != null && urlValue is String && urlValue.isNotEmpty) {
+            policeReportUrl = urlValue;
+            print('MEGA DEBUG: Valid policeReportUrl found: $policeReportUrl');
+          } else {
+            print('MEGA DEBUG: Invalid policeReportUrl value');
+          }
+        } else {
+          print('MEGA DEBUG: No policeReportUrl field in document');
+        }
+        
+        // Driving license URL check
+        if (data.containsKey('drivingLicenseUrl')) {
+          print('MEGA DEBUG: drivingLicenseUrl field exists in document');
+          var urlValue = data['drivingLicenseUrl'];
+          print('MEGA DEBUG: drivingLicenseUrl value: $urlValue');
+          print('MEGA DEBUG: drivingLicenseUrl value type: ${urlValue?.runtimeType}');
+          
+          if (urlValue != null && urlValue is String && urlValue.isNotEmpty) {
+            drivingLicenseUrl = urlValue;
+            print('MEGA DEBUG: Valid drivingLicenseUrl found: $drivingLicenseUrl');
+          } else {
+            print('MEGA DEBUG: Invalid drivingLicenseUrl value');
+          }
+        } else {
+          print('MEGA DEBUG: No drivingLicenseUrl field in document');
+        }
 
-        // Check if URL strings are actually strings and not null
-        String? policeReportUrl = data['policeReportUrl'] as String?;
-        String? drivingLicenseUrl = data['drivingLicenseUrl'] as String?;
-
-        print('Loading Police Report URL: $policeReportUrl');
-        print('Loading Driving License URL: $drivingLicenseUrl');
+        print('MEGA DEBUG: Final Police Report URL: $policeReportUrl');
+        print('MEGA DEBUG: Final Driving License URL: $drivingLicenseUrl');
 
         setState(() {
           _driverProfile = data;
           _fullNameController.text = data['fullName'] ?? '';
-          _phoneController.text = data['phoneNumber'] ?? '';
+          _phoneController.text = data['phoneNumber']?.toString() ?? '';
           _licenseController.text = data['licenseNumber'] ?? '';
           _emailController.text = data['email'] ?? '';
 
-          // Set the URLs
-          _policeReportUrl = policeReportUrl;
-          _drivingLicenseUrl = drivingLicenseUrl;
+          // Set the URLs - ensure they're not empty strings
+          _policeReportUrl = (policeReportUrl != null && policeReportUrl.isNotEmpty) 
+              ? policeReportUrl 
+              : null;
+              
+          _drivingLicenseUrl = (drivingLicenseUrl != null && drivingLicenseUrl.isNotEmpty) 
+              ? drivingLicenseUrl 
+              : null;
+              
+          print('MEGA DEBUG: State updated with:');
+          print('MEGA DEBUG:   _policeReportUrl = $_policeReportUrl');
+          print('MEGA DEBUG:   _drivingLicenseUrl = $_drivingLicenseUrl');
 
           // Reset upload flags
           _isUploadingPoliceReport = false;
@@ -166,13 +242,63 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     }
   }
 
+  // Updated methods for your driver_profile_screen.dart
+
+// Replace the existing _uploadDocument method with this one:
   Future<void> _uploadDocument(String documentType) async {
     // Check if already uploading
     if (documentType == 'police_report' && _isUploadingPoliceReport) return;
     if (documentType == 'driving_license' && _isUploadingLicense) return;
 
+    // Check if document already exists - must delete first before uploading a new one
+    if (documentType == 'police_report' && _policeReportUrl != null && _policeReportUrl!.isNotEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text('Please delete the existing Police Report before uploading a new one'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.all(20),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (documentType == 'driving_license' && _drivingLicenseUrl != null && _drivingLicenseUrl!.isNotEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text('Please delete the existing Driving License before uploading a new one'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.all(20),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+      return;
+    }
+
     // Set specific uploading state
-    if (!mounted) return; // Early exit if widget is disposed
+    if (!mounted) return;
     setState(() {
       if (documentType == 'police_report') {
         _isUploadingPoliceReport = true;
@@ -181,7 +307,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
       }
     });
 
-    print('Starting document upload for $documentType');
+    print('PROFILE SCREEN: Starting document upload for $documentType');
 
     // Dialog reference to ensure we can close it properly
     BuildContext? dialogContext;
@@ -191,7 +317,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
       if (userId == null) {
         throw Exception('User not authenticated');
       }
-      print('User ID: $userId');
+      print('PROFILE SCREEN: User ID: $userId');
 
       // Show loading dialog
       if (mounted) {
@@ -199,7 +325,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
           context: context,
           barrierDismissible: false,
           builder: (BuildContext context) {
-            dialogContext = context; // Store dialog context
+            dialogContext = context;
             return Center(
               child: Container(
                 padding: const EdgeInsets.all(20),
@@ -227,6 +353,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         );
       }
 
+      // Use the improved DocumentUploadService
       String? url = await DocumentUploadService.uploadPDF(
         userId: userId,
         documentType: documentType,
@@ -242,9 +369,9 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
       if (!mounted) return;
 
       if (url != null) {
-        print('Upload successful, URL: $url');
+        print('PROFILE SCREEN: Upload successful, URL: $url');
 
-        // Update local state
+        // Update local state immediately since the service handles Firestore
         setState(() {
           if (documentType == 'police_report') {
             _policeReportUrl = url;
@@ -255,25 +382,8 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
           }
         });
 
-        // Update profile in Firestore
-        Map<String, dynamic> updateData = {};
-        if (documentType == 'police_report') {
-          updateData['policeReportUrl'] = url;
-        } else if (documentType == 'driving_license') {
-          updateData['drivingLicenseUrl'] = url;
-        }
-
-        if (updateData.isNotEmpty) {
-          print('Updating Firestore with: $updateData');
-          await _firestore
-              .collection('driver_profiles')
-              .doc(userId)
-              .update(updateData);
-          print('Firestore update successful');
-
-          // Reload profile data to ensure UI is in sync with database
-          await _loadDriverProfile();
-        }
+        // Reload profile to ensure UI is synced with Firestore
+        await _loadDriverProfile();
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -294,7 +404,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         }
       } else {
         // No file selected or canceled
-        print('No file selected or upload canceled');
+        print('PROFILE SCREEN: No file selected or upload canceled');
 
         if (!mounted) return;
 
@@ -326,7 +436,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         }
       }
     } catch (e) {
-      print('Error uploading document: $e');
+      print('PROFILE SCREEN ERROR: $e');
 
       // Close dialog on error
       if (dialogContext != null && Navigator.canPop(dialogContext!)) {
@@ -368,6 +478,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     }
   }
 
+// Also replace the _deleteDocument method:
   Future<void> _deleteDocument(String documentType) async {
     if (!mounted) return;
 
@@ -450,26 +561,20 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     }
 
     try {
-      // 1. Delete from Firebase Storage
-      bool deleted = await DocumentUploadService.deleteDocument(documentUrl);
+      String? userId = _authInstance.currentUser?.uid;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Use improved delete service that handles both storage and Firestore
+      bool deleted = await DocumentUploadService.deleteDocument(
+        documentUrl,
+        documentType: documentType,
+        userId: userId,
+      );
 
       if (deleted) {
-        // 2. Update Firestore document
-        String userId = _authInstance.currentUser!.uid;
-        Map<String, dynamic> updateData = {};
-
-        if (documentType == 'police_report') {
-          updateData['policeReportUrl'] = FieldValue.delete();
-        } else if (documentType == 'driving_license') {
-          updateData['drivingLicenseUrl'] = FieldValue.delete();
-        }
-
-        await _firestore
-            .collection('driver_profiles')
-            .doc(userId)
-            .update(updateData);
-
-        // 3. Update local state
+        // Update local state
         if (mounted) {
           setState(() {
             if (documentType == 'police_report') {
@@ -480,7 +585,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
           });
         }
 
-        // 4. Close dialog and show success message
+        // Close dialog and show success message
         if (dialogContext != null && Navigator.canPop(dialogContext!)) {
           Navigator.pop(dialogContext!);
         }
@@ -497,7 +602,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         throw Exception('Failed to delete document from storage');
       }
     } catch (e) {
-      print('Error deleting document: $e');
+      print('PROFILE SCREEN DELETE ERROR: $e');
 
       // Close dialog
       if (dialogContext != null && Navigator.canPop(dialogContext!)) {
@@ -516,19 +621,95 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
   }
 
   Future<void> _viewDocument(String? url) async {
+    if (!mounted) return;
+
+    BuildContext? dialogContext;
     try {
       if (url == null || url.isEmpty) {
         throw Exception('Document URL is empty or null');
       }
 
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          dialogContext = context;
+          return Center(
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: primaryColor),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Opening document...',
+                    style: TextStyle(
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
+      // Try to open with direct URL first
       final Uri uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
+      bool canOpen = await canLaunchUrl(uri);
+      
+      if (canOpen) {
+        // Close loading dialog
+        if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+          Navigator.pop(dialogContext!);
+        }
+        
+        // Try to open directly
         await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        throw Exception('Cannot open document');
+        return;
       }
+      
+      // If direct opening fails, download and open locally
+      final http.Response response = await http.get(uri);
+      
+      if (response.statusCode != 200) {
+        throw Exception('Failed to download document: HTTP ${response.statusCode}');
+      }
+      
+      // Get temporary directory
+      final Directory tempDir = await getTemporaryDirectory();
+      final String filePath = '${tempDir.path}/document_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      
+      // Write to file
+      final File file = File(filePath);
+      await file.writeAsBytes(response.bodyBytes);
+      
+      // Close loading dialog
+      if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+        Navigator.pop(dialogContext!);
+      }
+      
+      // Open the file
+      final result = await OpenFile.open(filePath);
+      if (result.type != ResultType.done) {
+        throw Exception('Could not open file: ${result.message}');
+      }
+      
     } catch (e) {
       print('Error viewing document: $e');
+      
+      // Close loading dialog if open
+      if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+        Navigator.pop(dialogContext!);
+      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -766,6 +947,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                         onView: () => _viewDocument(_policeReportUrl),
                         cardColor: cardColorThemed,
                         textColor: textColorThemed,
+                        description: "Upload your police report (only one allowed)",
                       ),
 
                       const SizedBox(height: 16),
@@ -780,6 +962,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                         onView: () => _viewDocument(_drivingLicenseUrl),
                         cardColor: cardColorThemed,
                         textColor: textColorThemed,
+                        description: "Upload your driving license (only one allowed)",
                       ),
 
                       const SizedBox(height: 32),
@@ -822,23 +1005,54 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
                       const SizedBox(height: 32),
 
-                      // Logout Button
+                      // Profile Actions
+                      Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          children: [
+                            const Divider(height: 1),
+                            ListTile(
+                              leading: const Icon(Icons.settings_outlined),
+                              title: const Text('Settings'),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () {
+                                // Navigate to settings
+                              },
+                            ),
+                            const Divider(height: 1),
+                            ListTile(
+                              leading: const Icon(Icons.help_outline),
+                              title: const Text('Help & Support'),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () {
+                                // Navigate to help & support
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Sign Out Button
                       SizedBox(
                         width: double.infinity,
-                        height: 56,
                         child: ElevatedButton.icon(
-                          icon: Icon(Icons.logout),
-                          label: Text('Logout'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.grey[300],
-                            foregroundColor: textColor,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
                           onPressed: () async {
                             await _auth.signOut();
                           },
+                          icon: const Icon(Icons.logout),
+                          label: const Text('Sign Out'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.grey[200],
+                            foregroundColor: Colors.red,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -861,6 +1075,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     required VoidCallback onView,
     required Color cardColor,
     required Color textColor,
+    String? description,
   }) {
     // Check if document URL is valid
     final bool hasValidDocument = documentUrl != null && documentUrl.isNotEmpty;
@@ -909,6 +1124,17 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     fontWeight: FontWeight.bold,
     ),
     ),
+    if (description != null) ...[
+      const SizedBox(height: 4),
+      Text(
+        description,
+        style: TextStyle(
+          color: textColor.withOpacity(0.7),
+          fontSize: 12,
+          fontStyle: FontStyle.italic,
+        ),
+      ),
+    ],
     const SizedBox(height: 4),
     Row(
     children: [

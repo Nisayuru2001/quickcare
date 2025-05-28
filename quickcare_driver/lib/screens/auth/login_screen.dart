@@ -113,7 +113,7 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
                         ),
                         const SizedBox(width: 16),
                         const Text(
-                          'SmartAmbulance',
+                          'Quick Care Driver',
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
