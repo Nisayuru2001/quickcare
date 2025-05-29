@@ -38,6 +38,13 @@ Prerequisites
 
 Installation
 
+Clone Repo 
+
+```bash
+hgh repo clone Nisayuru2001/quickcare
+```
+
+
 QuickCare User App
 ```bash
 cd quickcare_user
@@ -113,4 +120,6 @@ This project is proprietary and confidential. All rights reserved.
 For technical support or queries:
 - Email: nisayurusandaneth@gmail.com
 - Phone: 0777627262
+
+
 
