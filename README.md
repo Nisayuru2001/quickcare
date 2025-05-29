@@ -41,7 +41,7 @@ Installation
 Clone Repo 
 
 ```bash
-hgh repo clone Nisayuru2001/quickcare
+[hgh repo clone Nisayuru2001/quickcare](https://github.com/Nisayuru2001/quickcare.git)
 ```
 
 
