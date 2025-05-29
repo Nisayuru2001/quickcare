@@ -1,0 +1,38 @@
+name: quickcare_user
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  firebase_core: ^2.24.2
+  firebase_auth: ^4.16.0
+  cloud_firestore: ^4.14.0
+  geolocator: ^11.0.0
+  permission_handler: ^11.3.0
+  google_maps_flutter: ^2.5.3
+  flutter_polyline_points: ^2.1.0
+  mailer: ^6.1.0
+  flutter_dotenv: ^5.1.0
+  file_picker: ^10.1.9
+  pdfx: ^2.9.1
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  url_launcher: ^6.2.5
+  rxdart: ^0.27.7
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
