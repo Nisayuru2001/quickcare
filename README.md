@@ -1,6 +1,6 @@
 QuickCare - Ambulance Service Platform
 
-QuickCare is an innovative mobile application designed to transform emergency medical response in Sri Lanka. The app addresses critical inefficiencies in the current system by leveraging mobile technology to connect users with emergency services quickly and effectively, potentially saving lives during medical crises.
+QuickCare is a comprehensive emergency medical response ecosystem designed to address critical gaps in Sri Lanka's healthcare infrastructure. Our three-tier solution transforms how emergency medical assistance is requested, managed, and delivered through cutting-edge technology and seamless communication.
 
 
 🏥 System Overview
